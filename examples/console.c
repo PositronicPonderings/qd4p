@@ -192,6 +192,176 @@ static void cmd_tap(char *args)
            qd_rng_is_replay() ? " (ignored: replay mode is on)" : "");
 }
 
+/* --- D2: dice and decks --------------------------------------------------- */
+
+static void roll_fudge(long count)
+{
+    if (count < 1 || count > 100) { printf("usage: 4dF (1 to 100 Fudge dice)\n"); return; }
+    qd_die_t f;
+    qd_die_fudge(&f);
+    int total = 0;
+    for (long i = 0; i < count; i++) {
+        qd_face_roll_t r = qd_die_roll(&f);
+        printf("[%s]", qd_die_face_label(&f, r.face));
+        total += r.value;
+    }
+    printf("  = %+d\n", total);
+}
+
+static void cmd_d66(char *args)
+{
+    long n = arg_num(&args, 1);
+    for (long i = 0; i < n; i++)
+        printf("%d%s", qd_roll_d66().result, (i % 10 == 9 || i == n - 1) ? "\n" : " ");
+}
+
+static void cmd_pct(char *args)
+{
+    int bonus = 0;
+    while (*args == 'b' || *args == 'p' || *args == 'B' || *args == 'P') {
+        char kind = *args++;
+        long n = arg_num(&args, 1);
+        bonus += (kind == 'b' || kind == 'B') ? (int)n : -(int)n;
+    }
+    long count = arg_num(&args, 1);
+    for (long i = 0; i < count; i++) {
+        qd_percentile_t p;
+        qd_roll_percentile(bonus, &p);
+        printf("units %d, tens", p.units);
+        for (int k = 0; k < p.tens_count; k++)
+            printf(k == p.kept && p.tens_count > 1 ? " [%d0]" : " %d0", p.tens[k]);
+        printf("  -> %d%s\n", p.result,
+               p.bonus > 0 ? " (bonus: best kept)" : p.bonus < 0 ? " (penalty: worst kept)" : "");
+    }
+}
+
+/* custom <count> <face> <face> ...   face = value[*weight][/label] */
+static void cmd_custom(char *args)
+{
+    long count = arg_num(&args, 0);
+    qd_face_t faces[QD_MAX_FACES];
+    int n = 0;
+    while (*args && n < QD_MAX_FACES) {
+        char *end;
+        memset(&faces[n], 0, sizeof(faces[n]));
+        faces[n].value = (int16_t)strtol(args, &end, 10);
+        if (end == args) break;
+        faces[n].weight = 1;
+        if (*end == '*') faces[n].weight = (uint8_t)strtol(end + 1, &end, 10);
+        if (*end == '/') {
+            int k = 0;
+            for (end++; *end && *end != ' ' && k < QD_MAX_LABEL; end++) faces[n].label[k++] = *end;
+            while (*end && *end != ' ') end++;
+        }
+        while (*end == ' ') end++;
+        args = end;
+        n++;
+    }
+    qd_die_t die;
+    if (count < 1 || !qd_die_custom(&die, faces, (uint16_t)n)) {
+        printf("usage: custom <rolls> <face> ...   face = value[*weight][/label]\n"
+               "   e.g. custom 20 1 2 3 4 5 6*3          (a six three times as likely)\n"
+               "        custom 100000 1 2 3 4 5 6*3      (big counts: a fairness table)\n");
+        return;
+    }
+    if (count <= 60) {
+        for (long i = 0; i < count; i++) {
+            qd_face_roll_t r = qd_die_roll(&die);
+            const char *l = qd_die_face_label(&die, r.face);
+            if (*l) printf("%s ", l); else printf("%d ", r.value);
+        }
+        printf("\n");
+        return;
+    }
+    static uint32_t counts[QD_MAX_FACES];
+    memset(counts, 0, sizeof(counts));
+    for (long i = 0; i < count; i++) counts[qd_die_roll(&die).face]++;
+    double chi = 0;
+    for (int f = 0; f < n; f++) {
+        double expect = count * qd_die_face_ppm(&die, (uint16_t)f) / 1e6;
+        chi += (counts[f] - expect) * (counts[f] - expect) / expect;
+        printf("  face %2d (%d%s%s): %6.2f%%  expected %6.2f%%\n", f + 1, faces[f].value,
+               *faces[f].label ? "/" : "", faces[f].label,
+               100.0 * counts[f] / count, qd_die_face_ppm(&die, (uint16_t)f) / 1e4);
+    }
+    double limit = chi_limit(n - 1);
+    printf("chi-square %.1f, limit %.1f: %s\n", chi, limit, chi < limit ? "PASS" : "FAIL");
+}
+
+static qd_deck_t deck;
+static bool deck_ready;
+
+static void deck_status(void)
+{
+    printf("%d cards, %d in the deck, %d out; reshuffle:%s%s%s%s%s\n", deck.count,
+           qd_deck_remaining(&deck), qd_deck_out_count(&deck),
+           deck.policy & QD_RESHUFFLE_EVERY_DRAW ? " every-draw" : "",
+           deck.policy & QD_RESHUFFLE_WHEN_EMPTY ? " when-empty" : "",
+           deck.policy & QD_RESHUFFLE_AFTER_TRIGGER ? " after-joker" : "",
+           deck.policy ? "" : " on demand only",
+           deck.triggered ? "  [joker out: next deal reshuffles]" : "");
+}
+
+static void cmd_deck(char *args)
+{
+    if (!strncmp(args, "poker", 5)) {
+        args += 5;
+        while (*args == ' ') args++;
+        long jokers = arg_num(&args, 0);
+        if (!qd_deck_poker(&deck, (int)jokers)) { printf("0 to 4 jokers\n"); return; }
+        deck_ready = true;
+    } else if (!strncmp(args, "tarot", 5)) {
+        qd_deck_tarot(&deck);
+        deck_ready = true;
+    } else if (!strncmp(args, "sw", 2)) {
+        qd_deck_poker(&deck, 2);
+        deck.policy = QD_RESHUFFLE_AFTER_TRIGGER | QD_RESHUFFLE_WHEN_EMPTY;
+        deck_ready = true;
+    } else if (*args) {
+        printf("usage: deck poker [jokers] | deck tarot | deck sw (Savage Worlds) | deck\n");
+        return;
+    }
+    if (!deck_ready) { printf("no deck yet: deck poker 2, deck tarot or deck sw\n"); return; }
+    deck_status();
+}
+
+static void cmd_deal(char *args)
+{
+    if (!deck_ready) { printf("no deck yet: deck poker 2, deck tarot or deck sw\n"); return; }
+    long n = arg_num(&args, 1);
+    if (n < 1 || n > 255) { printf("usage: deal [cards]\n"); return; }
+    static qd_card_draw_t hand[255];
+    bool reshuffled = (deck.policy & QD_RESHUFFLE_AFTER_TRIGGER) && deck.triggered;
+    int got = qd_deck_deal(&deck, hand, (int)n);
+    if (reshuffled) printf("(reshuffled: a joker came up last deal)\n");
+    for (int i = 0; i < got; i++) {
+        char name[32];
+        printf("  %-4s %s\n", hand[i].card->label, qd_card_name(hand[i].card, name, sizeof(name)));
+    }
+    if (got < n) printf("deck empty after %d cards (shuffle, or policy empty)\n", got);
+    deck_status();
+}
+
+static void cmd_shuffle(char *args)
+{
+    (void)args;
+    if (!deck_ready) { printf("no deck yet\n"); return; }
+    qd_deck_shuffle(&deck);
+    deck_status();
+}
+
+static void cmd_policy(char *args)
+{
+    if (!deck_ready) { printf("no deck yet\n"); return; }
+    uint8_t p = 0;
+    if (strstr(args, "every")) p |= QD_RESHUFFLE_EVERY_DRAW;
+    if (strstr(args, "empty")) p |= QD_RESHUFFLE_WHEN_EMPTY;
+    if (strstr(args, "joker")) p |= QD_RESHUFFLE_AFTER_TRIGGER;
+    if (!*args) { printf("usage: policy [every] [empty] [joker] | policy none\n"); return; }
+    deck.policy = p;
+    deck_status();
+}
+
 static const command_t commands[] = {
     { "help",    "this list",                                   cmd_help    },
     { "version", "which QD4P this is",                          cmd_version },
@@ -200,12 +370,19 @@ static const command_t commands[] = {
     { "seed",    "seed <n>: replay mode, same numbers every time", cmd_seed },
     { "live",    "leave replay: reseed from the hardware",      cmd_live    },
     { "next",    "next [n]: raw 32-bit numbers",                cmd_next    },
-    { "d",       "roll dice: type 24d19 or d20 (or d <sides> [count])", cmd_d },
+    { "d",       "roll dice: type 24d19, d20 or 4dF",             cmd_d       },
     { "test",    "test <sides> <rolls>: fairness check",        cmd_test    },
     { "stir",    "stir <text>: mix your own input in",          cmd_stir    },
     { "trng",    "trng [n]: stir in n hardware TRNG readings",  cmd_trng    },
     { "adc",     "adc <gpio> [n]: stir in ADC noise",           cmd_adc     },
     { "tap",     "tap [seconds]: stir in your key timings",     cmd_tap     },
+    { "d66",     "d66 [n]: tens and units d6",                  cmd_d66     },
+    { "pct",     "pct [b2|p1] [n]: d100, CoC bonus/penalty dice", cmd_pct   },
+    { "custom",  "custom <rolls> 1 2 6*3 0/+ ...: your own die", cmd_custom  },
+    { "deck",    "deck poker [jokers] | tarot | sw: new deck",  cmd_deck    },
+    { "deal",    "deal [n]: one deal of n cards",               cmd_deal    },
+    { "shuffle", "put every card back",                         cmd_shuffle },
+    { "policy",  "policy every/empty/joker/none: reshuffle rules", cmd_policy },
 };
 #define COMMAND_COUNT (sizeof(commands) / sizeof(commands[0]))
 
@@ -235,8 +412,13 @@ static void run_line(char *line)
             commands[i].run(args);
             return;
         }
-    /* "24d19" or "d20" typed as the command itself */
+    /* "24d19", "d20" or "4dF" typed as the command itself */
     char *d = strchr(line, 'd');
+    if (d && (d[1] == 'F' || d[1] == 'f') && !d[2]) {
+        char *end;
+        long count = (d == line) ? 1 : strtol(line, &end, 10);
+        if (d == line || end == d) { roll_fudge(count); return; }
+    }
     if (d && d[1] >= '1' && d[1] <= '9') {
         char *end;
         long count = (d == line) ? 1 : strtol(line, &end, 10);
