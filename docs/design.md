@@ -97,7 +97,8 @@ time; nothing can make it less random than the hardware seed alone.
 | --- | --- | --- |
 | Standard die | sides only, faces 1..N | d4 ... d100, DCC's d3/d5/d7/d14/d16/d24/d30 |
 | Custom die | up to 30 faces: value, weight (1-255), optional 4-char label | Fudge, loaded d6, average die |
-| Composite die | dice read together | d66, percentile d100, CoC bonus/penalty tens dice |
+| Digit dice | dice read as digits, each its own die | `dd66` (11..66, two d6), `dd666`, `dd36`; Year Zero and Traveller tables. `d66` stays a single die, 1..66 |
+| Percentile | units die plus tens dice | d100, CoC bonus/penalty tens dice |
 | Deck | up to 255 cards: value, suit/group, label; dealt/discard state | poker with jokers, tarot, custom |
 
 - **Faces, not just values:** every die records which face came up, so
@@ -149,7 +150,8 @@ parser out. v1 notation:
 
 | Feature | Notation | Example |
 | --- | --- | --- |
-| Dice | `NdS` `dS` `d%` `dF` `d66` | `3d6`, `4dF` |
+| Dice | `NdS` `dS` `d%` `dF` | `3d6`, `d66` (1..66), `4dF` |
+| Digit dice | `ddXY...` one die per digit | `dd66` (tens d6, units d6), `dd666` |
 | Custom die | `d{name}` | `2d{Loaded d6}` |
 | Maths | `+ - * /`, brackets, extra dice | `(1d8+2)*2`, `1d20+1d4` |
 | Keep / drop | `kN` `klN` `kmN` `dN` `dhN` | `4d6k3`, `2d20kl1` |

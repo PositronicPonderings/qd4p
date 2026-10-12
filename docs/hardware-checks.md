@@ -40,15 +40,20 @@ these confirm the device agrees.
 
 ## D2 Dice and decks
 
-1. **Same rolls as the PC.** Each line starts from `seed 42`:
+1. **Same rolls as the PC.** Type these in order after one `seed 42` (each
+   command carries on from the one before):
 
    | Type | Prints |
    | --- | --- |
+   | `seed 42` | `replay mode, seed 42` |
    | `custom 20 1 2 3 4 5 6*3` | `4 6 1 5 6 5 6 5 6 6 6 3 6 5 2 3 5 3 5 3` |
-   | `d66 10` | `36 14 44 54 55 52 54 13 43 43` |
-   | `pct b2 2` | `units 4, tens 90 [00] 50  -> 4` then `units 6, tens [50] 60 50  -> 56` |
-   | `pct p1 2` | `units 4, tens [90] 00  -> 94` then `units 5, tens [60] 50  -> 65` |
-   | `deck poker 2` then `deal 8` | JD, JkR, 2C, 5H, JH, 8H, KH, 2H |
+   | `d66 10` | `22 36 66 43 46 63 42 22 46 15` |
+   | `pct b2 2` | `units 6, tens 70 [20] 80  -> 26` then `units 4, tens 50 10 [00]  -> 4` |
+   | `pct p1 2` | `units 1, tens [70] 60  -> 71` then `units 9, tens 40 [70]  -> 79` |
+   | `deck poker 2` then `deal 8` | 10S, 6D, 10H, QC, 9S, 6H, 3D, 10D |
+
+   (`d66` will become the `dd66` digit-dice notation with the parser; see
+   the design doc.)
 
 2. **Weighted dice are fair to their weights.** `live`, then
    `custom 200000 1 2 3 4 5 6*3`: the six near 37.5%, the rest near 12.5%,
