@@ -52,13 +52,13 @@ these confirm the device agrees.
    | `pct p1 2` | `units 1, tens [70] 60  -> 71` then `units 9, tens 40 [70]  -> 79` |
    | `deck poker 2` then `deal 8` | 10S, 6D, 10H, QC, 9S, 6H, 3D, 10D |
 
-   (`d66` will become the `dd66` digit-dice notation with the parser; see
-   the design doc.)
+   (Since D3 the `d66` command is gone: type `dd66` instead. It makes the
+   same draws, so `seed 42` then `10dd66` starts 36 14 44.)
 
 2. **Weighted dice are fair to their weights.** `live`, then
    `custom 200000 1 2 3 4 5 6*3`: the six near 37.5%, the rest near 12.5%,
    PASS.
-3. **Labels.** `4dF` shows four faces like `[+][ ][-][+]` and a total.
+3. **Labels.** `4dF` shows four faces like `[+] [ ] [-] [+]` and a total.
    `custom 10 0/A 0/B 1/C` shows labels instead of values.
 4. **Savage Worlds deck.** `deck sw`, then `deal 5` repeatedly. When a joker
    comes up the status line says the next deal reshuffles; the next `deal 5`
@@ -68,3 +68,38 @@ these confirm the device agrees.
 6. **Reshuffle rules.** `deck poker`, `policy none`, `deal 60`: stops after
    52 with "deck empty". `policy every`, `deal 5` twice: each deal leaves
    only one card out.
+
+## D3 Roll engine
+
+Rolls are typed on their own line (or after `roll`); `notation` lists what
+the console understands until the parser arrives in D4. Dice are shown as
+`5` kept, `(5)` dropped or set aside, `~2~` rerolled, `!6` from an
+explosion (printed right after the die that exploded), `-7` subtracted by
+an implosion, `8*` a success, `10**` a double success, `1x` a failure.
+
+1. **Same rolls as the PC.** Type `seed 42` before each line:
+
+   | Type | Prints |
+   | --- | --- |
+   | `4d6 k3` | `4d6: 3 6 (1) 4  = 13` |
+   | `10d6 e6 k8 + 4` | `10d6: (3) 6 !5 (1) (4) 4 4 5 4 5 5  = 38`, `total 42` |
+   | `8d10 t8 ie10 f1` | `8d10: 5 10* !9* 1x 6 7 6 7 6  = 57`, `successes 1 (1 failure taken off)` |
+   | `2d20 adv1` | `2d20: 9 20 (1)  = 29` |
+   | `6d6 r2` | `6d6: 3 6 ~1~ 5 4 4 4  = 26` |
+   | `4d10 i1 e10` | `4d10: 5 10 !6 1 -7 6  = 21` |
+   | `6d10 t7 ds10` | `6d10: 5 10** 1 6 7* 6  = 35`, `successes 3` |
+   | `5dd66 dh1` | `5dd66: 36 14 44 54 (55)  = 148` |
+   | `12d4 ie4` | `12d4: 2 4 !4 !3 1 3 3 3 3 3 4 !1 3 3 2  = 42` |
+   | `4dF =+` | `4dF: [ ] [+] [-] [ ]  = 0`, `buckets: "+":1 other:3` |
+
+   These come from the Python reference (`tests/host/rng_reference.py`),
+   which the PC tests compare against the C engine die by die for 17 kinds
+   of roll and 25 seeds.
+2. **Summary mode and speed.** `live`, then `1000d6 <3 =6`: the first 100
+   dice are listed, then "... 900 more", face counts adding to 1000, an
+   average near 3.5, buckets, the summary note and the time taken (a few
+   milliseconds at most).
+3. **Limits are refused, not hung.** `1001d6` says too many dice. `1d6 ie1`
+   says it would never stop. `20dd61` can't be read (digits are 2-9).
+4. **Maths.** `1d20 - 1d4 * 2` works left to right for now: (d20 - d4) x 2.
+   `d%` is a d100.

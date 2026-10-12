@@ -4,7 +4,7 @@
 /* SPDX-AI-Provider: Anthropic */
 /**
  * @file    qd_dice.h
- * @brief   Dice: standard, custom (weighted, labelled) and composite.
+ * @brief   Dice: standard, custom (weighted, labelled) and percentile.
  *
  * QUICK START
  *
@@ -67,8 +67,9 @@ typedef struct {
     int16_t  value;                     /**< its value */
 } qd_face_roll_t;
 
-/** A standard die with faces 1..sides (sides 1 to 65535; DCC's d3, d5, d7,
- *  d14, d16, d24 and d30 are just standard dice). Returns false if sides is 0. */
+/** A standard die with faces 1..sides (sides 1 to 32767, so every value
+ *  fits in an int16_t; DCC's d3, d5, d7, d14, d16, d24 and d30 are just
+ *  standard dice). Returns false if sides is 0 or too big. */
 bool qd_die_standard(qd_die_t *die, uint16_t sides);
 
 /** A custom die from up to QD_MAX_FACES faces (copied in). Returns false if
@@ -92,13 +93,8 @@ uint32_t qd_die_face_ppm(const qd_die_t *die, uint16_t face);
 
 /* --- Composite dice ------------------------------------------------------- */
 
-/** d66: a tens d6 and a units d6 read together (11..66). */
-typedef struct {
-    uint8_t tens, units;
-    uint8_t result;                     /**< 10 * tens + units */
-} qd_d66_t;
-
-qd_d66_t qd_roll_d66(void);
+/* Digit dice (dd66: a tens d6 and a units d6 read as 11..66) are a kind
+ * of pool in the roll engine: see qd_roll_digits() in qd_roll.h. */
 
 /** Percentile dice, with Call of Cthulhu bonus and penalty dice. */
 #define QD_MAX_BONUS_DICE 3

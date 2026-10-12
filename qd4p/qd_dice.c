@@ -4,14 +4,13 @@
 /* SPDX-AI-Provider: Anthropic */
 /**
  * @file    qd_dice.c
- * @brief   Standard, custom and composite dice.
+ * @brief   Standard, custom and percentile dice.
  *
  * ORDER OF RANDOM DRAWS (tests/host/rng_reference.py copies these, so the
  * PC reference and the device produce the same rolls from the same seed):
  *   standard die     range(sides)
  *   custom die       range(total_weight), then walk the cumulative weights
  *                    (a die with all weights 1 uses range(sides) directly)
- *   d66              tens d6, then units d6
  *   percentile       units d10 first, then each tens d10 in order
  */
 #include <string.h>
@@ -21,7 +20,7 @@
 
 bool qd_die_standard(qd_die_t *die, uint16_t sides)
 {
-    if (!sides)
+    if (!sides || sides > 32767)
         return false;
     memset(die, 0, sizeof(*die));
     die->sides = sides;
@@ -95,15 +94,6 @@ uint32_t qd_die_face_ppm(const qd_die_t *die, uint16_t face)
 }
 
 /* --- Composite dice ------------------------------------------------------- */
-qd_d66_t qd_roll_d66(void)
-{
-    qd_d66_t d;
-    d.tens  = (uint8_t)(qd_rng_range(6) + 1);
-    d.units = (uint8_t)(qd_rng_range(6) + 1);
-    d.result = (uint8_t)(d.tens * 10 + d.units);
-    return d;
-}
-
 /* What a tens die and the units die read as together: 1..100. */
 static uint8_t percentile_value(uint8_t tens, uint8_t units)
 {

@@ -4,7 +4,7 @@
 /* SPDX-AI-Provider: Anthropic */
 /**
  * @file    test_dice.c
- * @brief   D2: standard, custom (weighted, labelled), Fudge, d66 and
+ * @brief   D2: standard, custom (weighted, labelled), Fudge and
  *          percentile dice, including Call of Cthulhu bonus/penalty dice.
  *
  * Goldens come from rng_reference.py (seed 42). Distributions are checked
@@ -35,7 +35,6 @@ static void test_golden(void)
 {
     static const int loaded42[20] = { 4, 6, 1, 5, 6, 5, 6, 5, 6, 6, 6, 3, 6, 5, 2, 3, 5, 3, 5, 3 };
     static const int fudge42[5]   = { 0, 1, 2, 0, 0 };
-    static const int d66_42[10]   = { 36, 14, 44, 54, 55, 52, 54, 13, 43, 43 };
     qd_die_t d;
 
     qd_die_custom(&d, loaded_faces, 6);
@@ -51,12 +50,6 @@ static void test_golden(void)
         int sum = 0;
         for (int k = 0; k < 4; k++) sum += qd_die_roll(&d).value;
         CHECK(sum == fudge42[i], "4dF roll %d: %d, reference %d", i, sum, fudge42[i]);
-    }
-
-    qd_rng_seed_fixed(42);
-    for (int i = 0; i < 10; i++) {
-        int v = qd_roll_d66().result;
-        CHECK(v == d66_42[i], "d66 roll %d: %d, reference %d", i, v, d66_42[i]);
     }
 
     /* CoC: units, tens dice, kept, result */
@@ -91,6 +84,7 @@ static void test_standard(void)
 {
     qd_die_t d;
     CHECK(!qd_die_standard(&d, 0), "a 0-sided die is refused");
+    CHECK(!qd_die_standard(&d, 32768) && qd_die_standard(&d, 32767), "up to 32767 sides (int16 values)");
     qd_die_standard(&d, 7);                              /* DCC d7 */
     static uint32_t counts[7];
     memset(counts, 0, sizeof(counts));
@@ -149,24 +143,6 @@ static void test_custom(void)
           "Fudge die: -1 -1 0 0 +1 +1 with labels");
 }
 
-static void test_d66(void)
-{
-    static uint32_t counts[36];
-    memset(counts, 0, sizeof(counts));
-    int ok = 1;
-    for (int i = 0; i < 360000; i++) {
-        qd_d66_t d = qd_roll_d66();
-        ok &= d.tens >= 1 && d.tens <= 6 && d.units >= 1 && d.units <= 6 &&
-              d.result == d.tens * 10 + d.units;
-        counts[(d.tens - 1) * 6 + d.units - 1]++;
-    }
-    CHECK(ok, "d66 digits 1-6, result = 10 x tens + units");
-    double share[36];
-    for (int i = 0; i < 36; i++) share[i] = 1.0 / 36;
-    double chi = chi_square_vs(counts, share, 36, 360000);
-    CHECK(chi < 66.62, "all 36 d66 results equally likely: chi-square %.1f", chi);
-}
-
 /* Exact distribution of percentile dice with `bonus`, by trying every
  * combination of units and tens dice. */
 static void exact_percentile(int bonus, double share[101])
@@ -223,7 +199,6 @@ int main(void)
     qd_rng_init_hw();
     test_standard();
     test_custom();
-    test_d66();
     test_percentile();
     return qd_test_done("dice");
 }

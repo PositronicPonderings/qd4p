@@ -130,6 +130,18 @@ exploded-from, dropped, rerolled, imploded, crit, fumble); totals and the
 system outcome (enum plus label); bucket counts; and a DM-only /
 player-visible mark on each field.
 
+**Ties and order.** When dice tie, "lowest" picks the earliest-rolled and
+"highest" the latest-rolled, so which die is marked dropped never varies.
+Dice made by explosions and rerolls go on the end of the pool's list with
+the index of the die they came from; a step never visits dice it made
+itself. The sum is a small stack program (pool totals, numbers, + - * /,
+negate), which the parser fills in with proper precedence; the C builders
+work left to right. Division rounds toward zero.
+
+**Digit dice** (`dd66`) are a kind of pool: one draw per digit, 2-9 sides
+each, up to 4 digits. They can be kept, dropped, counted and bucketed but
+not exploded or rerolled.
+
 **Buckets:** up to 8 user-defined tests on a die (comparison, range or list,
 on value or label), plus "everything else". None are built in; `<3`, `=6`
 etc. are illustrations.
@@ -139,6 +151,9 @@ etc. are illustrations.
 | Dice kept individually | 100 | Summary mode: count, sum, min, max, mean, count per face; totals, successes and buckets stay exact |
 | Dice per roll, incl. explosions | 1,000 | Roll refused with an error |
 | Explosions per die | 100 | Chain stops; result flagged |
+| Pools per roll | 8 | Roll refused |
+| Explode/implode/reroll steps per pool | 4 | Step refused |
+| Terms in the sum | 24 | Roll refused |
 
 All are compile-time settings in `qd4p/qd_config.h`.
 
@@ -229,7 +244,8 @@ Mass rolls use the same rules and return counts.
 1. **D0 Skeleton:** repo, CMake for Pico and host, test runner, USB console.
 2. **D1 Randomness:** generator, unbiased ranges, entropy sources, replay.
 3. **D2 Dice and decks.**
-4. **D3 Roll engine** (rolls built in C). First point the Dice Roller can use.
+4. **D3 Roll engine** (rolls built in C). First point the Dice Roller can
+   use. Done: `qd_roll.h`.
 5. **D4 Parser.**
 6. **D5 Outcomes and systems.**
 7. **D6 Rerolls and roll sets.**

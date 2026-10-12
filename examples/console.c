@@ -94,30 +94,6 @@ static void cmd_next(char *args)
         printf("%lu%s", (unsigned long)qd_rng_next32(), (i % 4 == 3 || i == n - 1) ? "\n" : "  ");
 }
 
-/* Roll plain dice. Takes "24d19" (the usual notation), "d20" or the
- * older "d 19 24" form. The full notation (4d6k3, 2d6+3, ...) arrives
- * with the parser in D4. */
-static void roll_plain(long count, long sides)
-{
-    if (sides < 1 || count < 1 || count > 100000) {
-        printf("usage: 24d19, d20, or d <sides> [count]\n"); return;
-    }
-    long long total = 0;                    /* 64-bit: long is 32 bits on the Pico */
-    for (long i = 0; i < count; i++) {
-        int32_t v = qd_rng_between(1, (int32_t)sides);
-        total += v;
-        if (count <= 100) printf("%ld%s", (long)v, (i % 20 == 19 || i == count - 1) ? "\n" : " ");
-    }
-    printf("total %lld, average %.2f (expected %.2f)\n", total, (double)total / count,
-           (sides + 1) / 2.0);
-}
-
-static void cmd_d(char *args)
-{
-    long sides = arg_num(&args, 0), count = arg_num(&args, 10);
-    roll_plain(count, sides);
-}
-
 /* Chi-square limit at p = 0.001 (Wilson-Hilferty approximation). */
 static double chi_limit(int df)
 {
@@ -194,27 +170,6 @@ static void cmd_tap(char *args)
 
 /* --- D2: dice and decks --------------------------------------------------- */
 
-static void roll_fudge(long count)
-{
-    if (count < 1 || count > 100) { printf("usage: 4dF (1 to 100 Fudge dice)\n"); return; }
-    qd_die_t f;
-    qd_die_fudge(&f);
-    int total = 0;
-    for (long i = 0; i < count; i++) {
-        qd_face_roll_t r = qd_die_roll(&f);
-        printf("[%s]", qd_die_face_label(&f, r.face));
-        total += r.value;
-    }
-    printf("  = %+d\n", total);
-}
-
-static void cmd_d66(char *args)
-{
-    long n = arg_num(&args, 1);
-    for (long i = 0; i < n; i++)
-        printf("%d%s", qd_roll_d66().result, (i % 10 == 9 || i == n - 1) ? "\n" : " ");
-}
-
 static void cmd_pct(char *args)
 {
     int bonus = 0;
@@ -233,6 +188,295 @@ static void cmd_pct(char *args)
         printf("  -> %d%s\n", p.result,
                p.bonus > 0 ? " (bonus: best kept)" : p.bonus < 0 ? " (penalty: worst kept)" : "");
     }
+}
+
+/* --- D3: the roll engine --------------------------------------------------
+ *
+ * A stand-in reader so rolls can be typed before the parser (D4) exists.
+ * Words are separated by spaces and apply to the dice before them:
+ *
+ *   4d6 k3    10d6 e6 k8 + 4    4d10 t8 ie10 f1    1d20 adv1 + 5
+ *   dd66      4dF =+            100d6 <3 =6        1d20 - 1d4 * 2
+ *
+ * The parser will read the same words (and more) without needing spaces.
+ */
+static qd_roll_t con_roll;
+static qd_die_t con_fudge;
+
+/* Read a whole number at *s; returns false if there isn't one. */
+static bool read_int(const char **s, long *out)
+{
+    char *end;
+    long v = strtol(*s, &end, 10);
+    if (end == *s) return false;
+    *out = v;
+    *s = end;
+    return true;
+}
+
+/* The pool just added was added to the total; subtract it instead. */
+static void make_minus(void)
+{
+    qd_op_t *last = &con_roll.ops[con_roll.op_count - 1];
+    if (last->kind == QD_OP_ADD) last->kind = QD_OP_SUB;
+    else qd_roll_push(&con_roll, QD_OP_NEG, 0);     /* it was the first thing */
+}
+
+/* A dice word: 4d6, d20, d%, 4dF, dd66, 3dd666. Adds a pool. */
+static bool dice_word(const char *w, bool minus)
+{
+    const char *s = w;
+    long count = 1;
+    if (*s >= '0' && *s <= '9') read_int(&s, &count);
+    if (*s != 'd' || count < 1 || count > 65535) return false;
+    s++;
+    qd_pool_t *p;
+    if (*s == 'd') {
+        p = qd_roll_digits(&con_roll, (uint16_t)count, s + 1);
+        if (p && minus) make_minus();
+        return p != NULL;
+    }
+    if ((*s == 'F' || *s == 'f') && !s[1]) {
+        p = qd_roll_custom(&con_roll, (uint16_t)count, &con_fudge);
+        if (p && minus) make_minus();
+        return p != NULL;
+    }
+    long sides;
+    if (*s == '%' && !s[1]) sides = 100;
+    else if (!read_int(&s, &sides) || *s || sides < 1 || sides > 32767) return false;
+    p = minus ? qd_roll_dice_minus(&con_roll, (uint16_t)count, (uint16_t)sides)
+              : qd_roll_dice(&con_roll, (uint16_t)count, (uint16_t)sides);
+    return p != NULL;
+}
+
+/* A test after a word like e, t or a bucket: a number, or the default. */
+static bool number_test(const char *s, qd_test_t dflt, bool le, qd_test_t *t)
+{
+    long n;
+    if (!*s) { *t = dflt; return true; }
+    if (!read_int(&s, &n) || *s) return false;
+    *t = le ? qd_test_le((int)n) : qd_test_ge((int)n);
+    return true;
+}
+
+/* A bucket: <3  <=3  >4  >=4  =6  !=1  =+ (a label) */
+static bool bucket_word(const char *w)
+{
+    static const struct { const char *sym; qd_test_t (*make)(int); } ops[] = {
+        { "<=", qd_test_le }, { ">=", qd_test_ge }, { "!=", qd_test_ne },
+        { "<", qd_test_lt }, { ">", qd_test_gt }, { "=", qd_test_eq },
+    };
+    for (size_t i = 0; i < sizeof(ops) / sizeof(ops[0]); i++) {
+        size_t n = strlen(ops[i].sym);
+        if (strncmp(w, ops[i].sym, n)) continue;
+        const char *s = w + n;
+        long v;
+        if (read_int(&s, &v) && !*s) return qd_roll_bucket(&con_roll, ops[i].make((int)v));
+        if (!strcmp(ops[i].sym, "=") && *s && strlen(s) <= QD_MAX_LABEL)
+            return qd_roll_bucket(&con_roll, qd_test_label(s));
+        return false;
+    }
+    return false;
+}
+
+/* A modifier on the last pool: adv dis e ie i r ir rg irg k kl km d dh t tl ds f b */
+static bool modifier_word(qd_pool_t *p, const char *w)
+{
+    qd_test_t t;
+    long n = 1;
+    const char *s;
+#define WORD(prefix) (!strncmp(w, prefix, strlen(prefix)) && (s = w + strlen(prefix)))
+    if (WORD("adv") || WORD("dis")) {
+        if (*s && (!read_int(&s, &n) || *s)) return false;
+        qd_pool_advantage(p, w[0] == 'a' ? (int)n : -(int)n);
+        return true;
+    }
+    if (WORD("irg")) return number_test(s, qd_test_max(), false, &t) && qd_pool_reroll(p, t, true);
+    if (WORD("ir"))  return number_test(s, qd_test_min(), true, &t) && qd_pool_reroll(p, t, true);
+    if (WORD("ie"))  return number_test(s, qd_test_max(), false, &t) && qd_pool_explode(p, t, true);
+    if (WORD("i"))   return number_test(s, qd_test_min(), true, &t) && qd_pool_implode(p, t);
+    if (WORD("e"))   return number_test(s, qd_test_max(), false, &t) && qd_pool_explode(p, t, false);
+    if (WORD("rg"))  return number_test(s, qd_test_max(), false, &t) && qd_pool_reroll(p, t, false);
+    if (WORD("r"))   return number_test(s, qd_test_min(), true, &t) && qd_pool_reroll(p, t, false);
+    if (WORD("tl"))  { if (!number_test(s, qd_test_min(), true, &t)) return false; qd_pool_success(p, t); return true; }
+    if (WORD("t"))   { if (!number_test(s, qd_test_max(), false, &t)) return false; qd_pool_success(p, t); return true; }
+    if (WORD("ds"))  {
+        bool le = p->success.op == QD_TEST_LE;
+        if (!number_test(s, p->success, le, &t)) return false;
+        qd_pool_twice(p, t);
+        return true;
+    }
+    if (WORD("f"))   { if (!number_test(s, qd_test_min(), true, &t)) return false; qd_pool_failure(p, t); return true; }
+    if (WORD("b"))   { if (!number_test(s, qd_test_min(), true, &t)) return false; qd_pool_botch(p, t); return true; }
+    static const struct { const char *w; qd_keep_t how; } keeps[] = {
+        { "kl", QD_KEEP_LOW }, { "km", QD_KEEP_MIDDLE }, { "k", QD_KEEP_HIGH },
+        { "dh", QD_DROP_HIGH }, { "d", QD_DROP_LOW },
+    };
+    for (size_t i = 0; i < sizeof(keeps) / sizeof(keeps[0]); i++)
+        if (WORD(keeps[i].w)) {
+            if (*s && (!read_int(&s, &n) || *s || n < 0)) return false;
+            qd_pool_keep(p, keeps[i].how, (uint16_t)n);
+            return true;
+        }
+#undef WORD
+    return false;
+}
+
+/* Read a whole line into con_roll. Returns false and names the word it
+ * couldn't read. */
+static bool read_roll(char *line)
+{
+    qd_roll_init(&con_roll);
+    char pending = 0;                       /* + - * / waiting for its number or dice */
+    for (char *w = strtok(line, " ,[]"); w; w = strtok(NULL, " ,[]")) {
+        /* "+5", "-1d4", "*2": split the operator from what follows */
+        if (strchr("+-*/", *w) && !pending) {
+            pending = *w++;
+            if (!*w) continue;
+        }
+        if (pending) {
+            const char *s = w;
+            long n;
+            if (read_int(&s, &n) && !*s) {
+                if (!con_roll.op_count) { printf("start with dice: '%c%s'\n", pending, w); return false; }
+                if (pending == '+') qd_roll_add(&con_roll, (int32_t)n);
+                else if (pending == '-') qd_roll_add(&con_roll, -(int32_t)n);
+                else if (pending == '*') qd_roll_mul(&con_roll, (int32_t)n);
+                else qd_roll_div(&con_roll, (int32_t)n);
+            } else if ((pending == '+' || pending == '-') && dice_word(w, pending == '-')) {
+            } else {
+                printf("can't read '%c%s'\n", pending, w);
+                return false;
+            }
+            pending = 0;
+            continue;
+        }
+        if (strchr("<>=!", *w)) {
+            if (!bucket_word(w)) { printf("can't read the bucket '%s'\n", w); return false; }
+            continue;
+        }
+        if (!con_roll.pool_count) {
+            if (!dice_word(w, false)) { printf("can't read the dice '%s'\n", w); return false; }
+            continue;
+        }
+        if (!modifier_word(&con_roll.pools[con_roll.pool_count - 1], w)) {
+            printf("can't read '%s' (add more dice with +, e.g. + 1d4)\n", w);
+            return false;
+        }
+    }
+    if (pending) { printf("'%c' needs a number or dice after it\n", pending); return false; }
+    return true;
+}
+
+/* One die as text: 5  (5) dropped  ~2~ rerolled  !6 from an explosion
+ * -7 imploded (subtracted)  8* success  10** double  1x failure  b botch */
+static void print_die(const qd_pool_t *p, const qd_die_result_t *d)
+{
+    char v[16];
+    const char *label = p->die ? qd_die_face_label(p->die, d->face) : "";
+    if (*label) snprintf(v, sizeof(v), "[%s]", label);
+    else snprintf(v, sizeof(v), "%d", d->value);
+    uint16_t f = d->flags;
+    printf(" %s%s%s%s%s%s%s%s%s", (f & QD_DIE_EXPLODED) ? "!" : "", (f & QD_DIE_IMPLODED) ? "-" : "",
+           (f & QD_DIE_REROLLED) ? "~" : (f & (QD_DIE_DROPPED | QD_DIE_SET_ASIDE)) ? "(" : "", v,
+           (f & QD_DIE_REROLLED) ? "~" : (f & (QD_DIE_DROPPED | QD_DIE_SET_ASIDE)) ? ")" : "",
+           (f & QD_DIE_TWICE) ? "**" : (f & QD_DIE_SUCCESS) ? "*" : "",
+           (f & QD_DIE_FAILURE) ? "x" : "", (f & QD_DIE_BOTCH) ? "b" : "",
+           (f & QD_DIE_CAPPED) ? "(cap)" : "");
+}
+
+/* Print a die, then the dice it led to, so chains read left to right. */
+static void print_tree(const qd_pool_t *p, const qd_die_result_t *dice, int n, int i, int depth)
+{
+    print_die(p, &dice[i]);
+    if (depth > 120) return;
+    for (int j = i + 1; j < n; j++)
+        if (dice[j].parent == i) print_tree(p, dice, n, j, depth + 1);
+}
+
+static void print_result(const qd_roll_t *r, const qd_result_t *res)
+{
+    for (int k = 0; k < res->pool_count; k++) {
+        const qd_pool_t *p = &r->pools[k];
+        const qd_pool_result_t *pr = &res->pools[k];
+        if (p->digits) {
+            printf("%udd", p->count);
+            for (int d = 0; d < p->digits; d++) printf("%u", p->digit_sides[d]);
+        } else if (p->die) {
+            printf("%u%s", p->count, p->die == &con_fudge ? "dF" : "d?");
+        } else {
+            printf("%ud%u", p->count, p->sides);
+        }
+        printf(":");
+        const qd_die_result_t *dice = &res->dice[pr->first];
+        for (int i = 0; i < pr->listed; i++)
+            if (dice[i].parent == QD_NO_PARENT) print_tree(p, dice, pr->listed, i, 0);
+        if (pr->listed < pr->rolled) printf(" ... %u more", pr->rolled - pr->listed);
+        printf("  = %ld", (long)pr->total);
+        if (pr->rolled > 20 && pr->kept)
+            printf("  (%u kept, low %d, high %d, average %.2f)", pr->kept, pr->min, pr->max,
+                   (double)pr->total / pr->kept);
+        printf("\n");
+        if (pr->listed < pr->rolled && pr->face_counts) {
+            printf("  faces:");
+            for (int f = 0; f < (p->die ? p->die->sides : p->sides); f++)
+                if (pr->face_count[f]) printf(" %d:%u", f + 1, pr->face_count[f]);
+            printf("\n");
+        }
+    }
+    printf("total %ld", (long)res->total);
+    if (res->flags & QD_RES_COUNTING) printf(", successes %d", res->successes);
+    if (res->failures) printf(" (%d failure%s taken off)", res->failures, res->failures == 1 ? "" : "s");
+    if (res->botches) printf(", botches %d", res->botches);
+    printf("\n");
+    if (res->bucket_count) {
+        printf("buckets:");
+        for (int b = 0; b < res->bucket_count; b++) {
+            char t[16];
+            printf(" %s:%u", qd_test_text(&r->buckets[b].test, t, sizeof(t)), res->buckets[b]);
+        }
+        printf(" other:%u\n", res->buckets[res->bucket_count]);
+    }
+    if (res->flags & QD_RES_SUMMARY)  printf("(summary: over %d dice, only the first %d listed)\n",
+                                             QD_MAX_KEPT_DICE, QD_MAX_KEPT_DICE);
+    if (res->flags & QD_RES_CAPPED)   printf("(an explosion or reroll chain hit the limit)\n");
+    if (res->flags & QD_RES_DIV_ZERO) printf("(divided by zero: that step gave 0)\n");
+    if (res->flags & QD_RES_CLAMPED)  printf("(total too big: clamped)\n");
+}
+
+static void cmd_roll(char *args)
+{
+    if (!*args) {
+        printf("usage: roll 4d6 k3 | 10d6 e6 k8 + 4 | 4d10 t8 ie10 f1 | dd66 | 4dF =+\n"
+               "  (or type the roll on its own; see 'notation')\n");
+        return;
+    }
+    if (!read_roll(args)) return;
+    static qd_result_t res;
+    uint32_t t0 = time_us_32();
+    qd_err_t e = qd_roll_run(&con_roll, &res);
+    uint32_t us = time_us_32() - t0;
+    if (e) { printf("can't roll that: %s\n", qd_err_text(e)); return; }
+    print_result(&con_roll, &res);
+    if (res.rolled > 100) printf("(%u dice in %lu us)\n", res.rolled, (unsigned long)us);
+}
+
+static void cmd_notation(char *args)
+{
+    (void)args;
+    printf(
+        "dice      4d6  d20  d%%  4dF  dd66 (tens d6, units d6)  dd666\n"
+        "maths     + 5   - 1d4   * 2   / 2      (left to right for now)\n"
+        "advantage adv1  dis1        extra die, set aside lowest/highest first\n"
+        "explode   e (on max)  e5 (5+)  ie (again and again)  ie5\n"
+        "implode   i (on min)  i2 (2 or less): roll one more and subtract it\n"
+        "reroll    r (min)  r2 (2 or less)  ir2 (until not)  rg5  irg5 (5+)\n"
+        "keep      k3 (highest)  kl3 (lowest)  km3 (middle)  d1 (drop lowest)  dh1\n"
+        "count     t8 (8+ succeeds)  tl3 (3 or less)  ds10 (10s count twice)\n"
+        "          f1 (1s take a success off)  b1 (count botches)\n"
+        "buckets   <3  <=3  >4  >=4  =6  !=1  =+ (label)\n"
+        "shown as  5 kept  (5) dropped  ~2~ rerolled  !6 exploded  -7 subtracted\n"
+        "          8* success  10** double  1x failure  b botch\n");
 }
 
 /* custom <count> <face> <face> ...   face = value[*weight][/label] */
@@ -371,13 +615,13 @@ static const command_t commands[] = {
     { "seed",    "seed <n>: replay mode, same numbers every time", cmd_seed },
     { "live",    "leave replay: reseed from the hardware",      cmd_live    },
     { "next",    "next [n]: raw 32-bit numbers",                cmd_next    },
-    { "d",       "roll dice: type 24d19, d20 or 4dF",             cmd_d       },
     { "test",    "test <sides> <rolls>: fairness check",        cmd_test    },
     { "stir",    "stir <text>: mix your own input in",          cmd_stir    },
     { "trng",    "trng [n]: stir in n hardware TRNG readings",  cmd_trng    },
     { "adc",     "adc <gpio> [n]: stir in ADC noise",           cmd_adc     },
     { "tap",     "tap [seconds]: stir in your key timings",     cmd_tap     },
-    { "d66",     "d66 [n]: tens and units d6",                  cmd_d66     },
+    { "roll",    "roll 4d6 k3 (or just type 4d6 k3)",           cmd_roll    },
+    { "notation","what you can type in a roll",                 cmd_notation },
     { "pct",     "pct [b2|p1] [n]: d100, CoC bonus/penalty dice", cmd_pct   },
     { "custom",  "custom <rolls> 1 2 6*3 0/+ ...: your own die", cmd_custom  },
     { "deck",    "deck poker [jokers] | tarot | sw: new deck",  cmd_deck    },
@@ -413,20 +657,11 @@ static void run_line(char *line)
             commands[i].run(args);
             return;
         }
-    /* "24d19", "d20" or "4dF" typed as the command itself */
-    char *d = strchr(line, 'd');
-    if (d && (d[1] == 'F' || d[1] == 'f') && !d[2]) {
-        char *end;
-        long count = (d == line) ? 1 : strtol(line, &end, 10);
-        if (d == line || end == d) { roll_fudge(count); return; }
-    }
-    if (d && d[1] >= '1' && d[1] <= '9') {
-        char *end;
-        long count = (d == line) ? 1 : strtol(line, &end, 10);
-        if (d == line || end == d) {
-            long sides = strtol(d + 1, &end, 10);
-            if (!*end) { roll_plain(count, sides); return; }
-        }
+    /* A roll typed on its own: "4d6 k3", "d20", "dd66", "4dF". */
+    if ((*line >= '0' && *line <= '9') || *line == 'd' || *line == '-') {
+        if (*args) line[strlen(line)] = ' ';    /* put the line back together */
+        cmd_roll(line);
+        return;
     }
     printf("unknown command '%s' - try help\n", line);
 }
@@ -437,6 +672,7 @@ int main(void)
     for (int i = 0; i < 30 && !stdio_usb_connected(); i++)   /* up to 3 s for the PC */
         sleep_ms(100);
     qd_rng_init_hw();                                         /* hardware seed at boot */
+    qd_die_fudge(&con_fudge);
     printf("\nQD4P %s console - type help\n> ", qd_version());
 
     char line[128];

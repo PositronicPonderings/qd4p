@@ -18,9 +18,13 @@ cd "$(dirname "$0")" || exit 1
 L=../../qd4p; B=build
 mkdir -p $B
 CC=${CC:-cc}
-CF="-std=c11 -O2 -Wall -Wextra -Werror -I$L -I."
+CF="-std=c11 -O2 -Wall -Wextra -Werror -I$L -I. -I$B"
 LIB=$(ls $L/*.c | grep -v '_pico\.c$')
 pass=0; fail=0
+
+# The roll engine's goldens are written fresh from the Python reference
+# every run, so the C engine and the reference are always compared.
+python3 rng_reference.py --c-goldens > $B/roll_goldens.h || { echo "FAIL  rng_reference.py"; exit 1; }
 
 for t in test_*.c; do
     name=${t%.c}

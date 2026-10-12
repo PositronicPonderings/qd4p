@@ -46,6 +46,31 @@
 #define QD_MAX_BUCKETS          8
 #endif
 
+/** Pools (dice of one kind) in one roll: "1d20 + 1d4 + 2d6" is three. */
+#ifndef QD_MAX_POOLS
+#define QD_MAX_POOLS            8
+#endif
+
+/** Explode / implode / reroll steps on one pool. */
+#ifndef QD_MAX_POOL_STEPS
+#define QD_MAX_POOL_STEPS       4
+#endif
+
+/** Numbers, pool totals and operators in a roll's sum. */
+#ifndef QD_MAX_ROLL_OPS
+#define QD_MAX_ROLL_OPS         24
+#endif
+
+/** Digits in digit dice (dd666 has three). */
+#ifndef QD_MAX_DIGITS
+#define QD_MAX_DIGITS           4
+#endif
+
+/** Characters in a pool's group name ("stress"). */
+#ifndef QD_MAX_NAME
+#define QD_MAX_NAME             7
+#endif
+
 /* --- Dice and decks ------------------------------------------------------ */
 
 /** Faces on a custom die (matches the Dice Roller settings store). */
