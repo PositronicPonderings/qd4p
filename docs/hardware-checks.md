@@ -97,9 +97,12 @@ an implosion, `8*` a success, `10**` a double success, `1x` a failure.
    of roll and 25 seeds.
 2. **Summary mode and speed.** `live`, then `1000d6 <3 =6`: the first 100
    dice are listed, then "... 900 more", face counts adding to 1000, an
-   average near 3.5, buckets, the summary note and the time taken (a few
-   milliseconds at most).
+   average near 3.5, buckets, the summary note and the time taken: a couple
+   of milliseconds. `1000d6 k500` sorts all 1000 dice and should still take
+   only a few.
 3. **Limits are refused, not hung.** `1001d6` says too many dice. `1d6 ie1`
-   says it would never stop. `20dd61` can't be read (digits are 2-9).
+   says it would never stop. `20dd61` rolls (11, 21 ... 61) with a note that
+   a one-sided die always shows 1; `20dd60` can't be read (digits are 1-9).
+   `4d6 k0` rolls with a note that keeping 0 dice always totals 0.
 4. **Maths.** `1d20 - 1d4 * 2` works left to right for now: (d20 - d4) x 2.
    `d%` is a d100.

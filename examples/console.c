@@ -457,6 +457,7 @@ static void cmd_roll(char *args)
     qd_err_t e = qd_roll_run(&con_roll, &res);
     uint32_t us = time_us_32() - t0;
     if (e) { printf("can't roll that: %s\n", qd_err_text(e)); return; }
+    if (res.warnings) printf("note: %s\n", qd_warn_text(res.warnings));
     print_result(&con_roll, &res);
     if (res.rolled > 100) printf("(%u dice in %lu us)\n", res.rolled, (unsigned long)us);
 }
@@ -465,7 +466,7 @@ static void cmd_notation(char *args)
 {
     (void)args;
     printf(
-        "dice      4d6  d20  d%%  4dF  dd66 (tens d6, units d6)  dd666\n"
+        "dice      4d6  d20  d%%  4dF  dd66 (tens d6, units d6)  dd666  dd61\n"
         "maths     + 5   - 1d4   * 2   / 2      (left to right for now)\n"
         "advantage adv1  dis1        extra die, set aside lowest/highest first\n"
         "explode   e (on max)  e5 (5+)  ie (again and again)  ie5\n"

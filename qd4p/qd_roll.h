@@ -236,7 +236,8 @@ qd_pool_t *qd_roll_custom(qd_roll_t *r, uint16_t count, const qd_die_t *die);
 
 /** Add N digit dice: "66" is a tens d6 and a units d6 read as 11..66,
  *  "666" three d6 read as 111..666, "36" a d3 then a d6. Each digit's die
- *  has 2 to 9 sides; up to QD_MAX_DIGITS digits. Digit dice can be kept,
+ *  has 1 to 9 sides (a 1 always shows 1, and earns a warning); up to
+ *  QD_MAX_DIGITS digits. Digit dice can be kept,
  *  dropped and counted but not exploded, imploded or rerolled. */
 qd_pool_t *qd_roll_digits(qd_roll_t *r, uint16_t count, const char *digits);
 
@@ -320,6 +321,7 @@ typedef struct {
     int16_t  successes;                 /**< all pools: successes minus failures */
     int16_t  failures, botches;
     uint16_t flags;                     /**< QD_RES_* */
+    uint16_t warnings;                  /**< QD_WARN_*: rolled, but worth a note */
     uint16_t rolled;                    /**< every die rolled */
     uint8_t  pool_count;
     qd_pool_result_t pools[QD_MAX_POOLS];
@@ -328,6 +330,12 @@ typedef struct {
     uint16_t dice_count;                /**< dice listed below */
     qd_die_result_t dice[QD_MAX_KEPT_DICE];
 } qd_result_t;
+
+/** Warnings: the roll is allowed, but probably not what was meant. */
+enum {
+    QD_WARN_ONE_SIDED = 1 << 0,         /**< a d1 (or a 1 in digit dice) always shows 1 */
+    QD_WARN_KEEP_NONE = 1 << 1,         /**< k0 / kl0 / km0 keeps nothing */
+};
 
 /** What went wrong. */
 typedef enum {
@@ -343,6 +351,12 @@ typedef enum {
 
 /** A short description of an error, for showing to a person. */
 const char *qd_err_text(qd_err_t e);
+
+/** Warnings for a roll (also put in qd_result_t.warnings by qd_roll_run). */
+uint16_t qd_roll_warnings(const qd_roll_t *r);
+
+/** Text for the first warning set in `w`, or "" if none. */
+const char *qd_warn_text(uint16_t w);
 
 /** Check a roll without rolling it. */
 qd_err_t qd_roll_check(const qd_roll_t *r);

@@ -177,7 +177,7 @@ qd_pool_t *qd_roll_digits(qd_roll_t *r, uint16_t count, const char *digits)
         return NULL;
     }
     for (size_t i = 0; i < n; i++)
-        if (digits[i] < '2' || digits[i] > '9') {
+        if (digits[i] < '1' || digits[i] > '9') {
             r->error = QD_ERR_DIGITS;
             return NULL;
         }
@@ -316,7 +316,7 @@ const char *qd_err_text(qd_err_t e)
     case QD_ERR_FULL:          return "too many pools, steps, buckets or terms";
     case QD_ERR_NO_DICE:       return "a pool needs at least 1 die with at least 1 side";
     case QD_ERR_TOO_MANY_DICE: return "too many dice";
-    case QD_ERR_DIGITS:        return "digit dice need 1-4 digits of 2-9 and can't explode or reroll";
+    case QD_ERR_DIGITS:        return "digit dice need 1-4 digits of 1-9 and can't explode or reroll";
     case QD_ERR_FOREVER:       return "explodes or rerolls on every face, so it would never stop";
     case QD_ERR_SUM:           return "the sum doesn't add up";
     case QD_ERR_DIV_ZERO:      return "divide by zero";
@@ -340,7 +340,7 @@ qd_err_t qd_roll_check(const qd_roll_t *r)
             if (p->digits > QD_MAX_DIGITS || p->step_count)
                 return QD_ERR_DIGITS;
             for (int d = 0; d < p->digits; d++)
-                if (p->digit_sides[d] < 2 || p->digit_sides[d] > 9)
+                if (p->digit_sides[d] < 1 || p->digit_sides[d] > 9)
                     return QD_ERR_DIGITS;
         } else if (p->die ? !p->die->sides : (!p->sides || p->sides > 32767)) {
             return QD_ERR_NO_DICE;
@@ -453,20 +453,30 @@ static int add_die(const pool_ctx_t *c, uint16_t parent, uint16_t flags)
 }
 
 /* Sort the in-play dice by value, lowest first; ties stay in the order
- * they were rolled. Insertion sort: simple, stable, plenty fast for 1000. */
+ * they were rolled. A bottom-up merge sort: stable, and about 10,000
+ * comparisons for 1000 dice where a simple insertion sort needs 250,000. */
 static int sort_in_play(void)
 {
+    static uint16_t spare[QD_MAX_ROLL_DICE];
     int n = 0;
-    for (uint16_t i = 0; i < work_n; i++) {
-        if (work[i].flags & QD_DIE_OUT)
-            continue;
-        int j = n++;
-        while (j > 0 && work[order[j - 1]].value > work[i].value) {
-            order[j] = order[j - 1];
-            j--;
+    for (uint16_t i = 0; i < work_n; i++)
+        if (!(work[i].flags & QD_DIE_OUT))
+            order[n++] = i;
+    uint16_t *from = order, *to = spare;
+    for (int width = 1; width < n; width *= 2) {
+        for (int lo = 0; lo < n; lo += 2 * width) {
+            int mid = lo + width < n ? lo + width : n;
+            int hi = lo + 2 * width < n ? lo + 2 * width : n;
+            int a = lo, b = mid, k = lo;
+            while (a < mid && b < hi)        /* <= keeps ties in rolled order */
+                to[k++] = work[from[a]].value <= work[from[b]].value ? from[a++] : from[b++];
+            while (a < mid) to[k++] = from[a++];
+            while (b < hi)  to[k++] = from[b++];
         }
-        order[j] = i;
+        uint16_t *t = from; from = to; to = t;
     }
+    if (from != order)
+        memcpy(order, from, (size_t)n * sizeof(order[0]));
     return n;
 }
 
@@ -556,8 +566,8 @@ static void run_pool(const qd_roll_t *r, uint8_t index, qd_result_t *res)
     for (int s = 0; s < p->step_count; s++)
         run_step(&c, &p->steps[s], res);
 
-    /* 3. Keep or drop. */
-    int live = sort_in_play();
+    /* 3. Keep or drop (no need to sort if there's nothing to keep or drop). */
+    int live = p->keep == QD_KEEP_ALL ? 0 : sort_in_play();
     int n = p->keep_n > live ? live : p->keep_n;
     switch (p->keep) {
     case QD_KEEP_HIGH:   mark_ends(live, live - n, 0, QD_DIE_DROPPED); break;
@@ -669,12 +679,38 @@ static int32_t run_sum(const qd_roll_t *r, qd_result_t *res)
     return top ? (int32_t)stack[0] : 0;
 }
 
+uint16_t qd_roll_warnings(const qd_roll_t *r)
+{
+    uint16_t w = 0;
+    for (int i = 0; i < r->pool_count; i++) {
+        const qd_pool_t *p = &r->pools[i];
+        if (p->digits) {
+            for (int d = 0; d < p->digits; d++)
+                if (p->digit_sides[d] == 1) w |= QD_WARN_ONE_SIDED;
+        } else if (face_total(p) == 1) {
+            w |= QD_WARN_ONE_SIDED;
+        }
+        if (p->keep == QD_KEEP_HIGH || p->keep == QD_KEEP_LOW || p->keep == QD_KEEP_MIDDLE) {
+            if (p->keep_n == 0) w |= QD_WARN_KEEP_NONE;
+        }
+    }
+    return w;
+}
+
+const char *qd_warn_text(uint16_t w)
+{
+    if (w & QD_WARN_ONE_SIDED) return "a die with one side always shows the same number";
+    if (w & QD_WARN_KEEP_NONE) return "keeping 0 dice: the total is always 0";
+    return "";
+}
+
 qd_err_t qd_roll_run(const qd_roll_t *r, qd_result_t *res)
 {
     memset(res, 0, sizeof(*res));
     qd_err_t e = qd_roll_check(r);
     if (e)
         return e;
+    res->warnings = qd_roll_warnings(r);
     res->pool_count = r->pool_count;
     res->bucket_count = r->bucket_count;
     roll_n = 0;

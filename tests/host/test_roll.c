@@ -160,6 +160,7 @@ static void test_errors(void)
 {
     static qd_roll_t r;
     static qd_result_t res;
+    int ok;
 
     qd_roll_init(&r);
     CHECK(qd_roll_run(&r, &res) == QD_ERR_NO_DICE, "a roll with no pools is refused");
@@ -191,7 +192,23 @@ static void test_errors(void)
     CHECK(qd_roll_run(&r, &res) == QD_OK && res.total == 2, "1d1 e explodes once: 2");
 
     qd_roll_init(&r);
-    CHECK(!qd_roll_digits(&r, 1, "61") && qd_roll_check(&r) == QD_ERR_DIGITS, "dd61 is refused");
+    CHECK(!qd_roll_digits(&r, 1, "60") && qd_roll_check(&r) == QD_ERR_DIGITS, "dd60 is refused");
+    qd_roll_init(&r);
+    qd_roll_digits(&r, 20, "61");
+    ok = qd_roll_run(&r, &res) == QD_OK && (res.warnings & QD_WARN_ONE_SIDED);
+    for (int i = 0; ok && i < 20; i++) ok = res.dice[i].value % 10 == 1;
+    CHECK(ok, "dd61 rolls 11..61 with a one-sided warning");
+    qd_roll_init(&r);
+    qd_roll_dice(&r, 3, 1);
+    CHECK(qd_roll_run(&r, &res) == QD_OK && res.total == 3 && (res.warnings & QD_WARN_ONE_SIDED),
+          "3d1 is 3, with a warning");
+    qd_roll_init(&r);
+    qd_pool_keep(qd_roll_dice(&r, 4, 6), QD_KEEP_HIGH, 0);
+    CHECK(qd_roll_run(&r, &res) == QD_OK && res.total == 0 && (res.warnings & QD_WARN_KEEP_NONE),
+          "4d6 k0 keeps nothing, with a warning");
+    qd_roll_init(&r);
+    qd_roll_dice(&r, 4, 6);
+    CHECK(qd_roll_warnings(&r) == 0 && !*qd_warn_text(0), "an ordinary roll has no warnings");
     qd_roll_init(&r);
     CHECK(!qd_roll_digits(&r, 1, "66666") && r.error == QD_ERR_DIGITS, "five digits is refused");
     qd_roll_init(&r);
@@ -313,6 +330,35 @@ static void test_counting(void)
     CHECK(!strcmp(qd_test_text(&t, buf, sizeof(buf)), "3-5"), "test text 3-5");
 }
 
+/* Big pools: the sort that keep/drop uses, checked against face counts. */
+static void test_big_keep(void)
+{
+    static qd_roll_t r, all;
+    static qd_result_t res, res_all;
+    int ok = 1;
+    for (int trial = 0; trial < 50; trial++) {
+        uint64_t seed = 1000 + (uint64_t)trial;
+        int n = 1 + trial * 19;                     /* 1 .. 932 kept of 1000 */
+        qd_roll_init(&r);
+        qd_pool_keep(qd_roll_dice(&r, 1000, 20), trial % 2 ? QD_KEEP_LOW : QD_KEEP_HIGH, (uint16_t)n);
+        qd_roll_init(&all);
+        qd_roll_dice(&all, 1000, 20);
+        qd_rng_seed_fixed(seed); qd_roll_run(&r, &res);
+        qd_rng_seed_fixed(seed); qd_roll_run(&all, &res_all);
+        /* the n highest (or lowest) of the same 1000 dice, from their face counts */
+        long want = 0;
+        int left = n;
+        for (int k = 0; k < 20 && left; k++) {
+            int f = trial % 2 ? k : 19 - k;
+            int take = res_all.pools[0].face_count[f] < left ? res_all.pools[0].face_count[f] : left;
+            want += (long)take * (f + 1);
+            left -= take;
+        }
+        ok &= res.total == want && res.pools[0].kept == n;
+    }
+    CHECK(ok, "1000d20 keeping 1..932 highest or lowest matches the face counts");
+}
+
 /* --- Distributions ---------------------------------------------------------- */
 static void test_distributions(void)
 {
@@ -400,6 +446,7 @@ int main(void)
     test_errors();
     test_caps();
     test_counting();
+    test_big_keep();
     test_distributions();
     return qd_test_done("roll engine");
 }

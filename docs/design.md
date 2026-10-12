@@ -138,7 +138,7 @@ itself. The sum is a small stack program (pool totals, numbers, + - * /,
 negate), which the parser fills in with proper precedence; the C builders
 work left to right. Division rounds toward zero.
 
-**Digit dice** (`dd66`) are a kind of pool: one draw per digit, 2-9 sides
+**Digit dice** (`dd66`) are a kind of pool: one draw per digit, 1-9 sides
 each, up to 4 digits. They can be kept, dropped, counted and bucketed but
 not exploded or rerolled.
 
