@@ -102,13 +102,13 @@ static void roll_plain(long count, long sides)
     if (sides < 1 || count < 1 || count > 100000) {
         printf("usage: 24d19, d20, or d <sides> [count]\n"); return;
     }
-    long total = 0;
+    long long total = 0;                    /* 64-bit: long is 32 bits on the Pico */
     for (long i = 0; i < count; i++) {
         int32_t v = qd_rng_between(1, (int32_t)sides);
         total += v;
         if (count <= 100) printf("%ld%s", (long)v, (i % 20 == 19 || i == count - 1) ? "\n" : " ");
     }
-    printf("total %ld, average %.2f (expected %.2f)\n", total, (double)total / count,
+    printf("total %lld, average %.2f (expected %.2f)\n", total, (double)total / count,
            (sides + 1) / 2.0);
 }
 
@@ -278,7 +278,8 @@ static void cmd_custom(char *args)
     for (long i = 0; i < count; i++) counts[qd_die_roll(&die).face]++;
     double chi = 0;
     for (int f = 0; f < n; f++) {
-        double expect = count * qd_die_face_ppm(&die, (uint16_t)f) / 1e6;
+        /* double first: on the Pico long is 32 bits, and rolls x ppm overflows */
+        double expect = (double)count * qd_die_face_ppm(&die, (uint16_t)f) / 1e6;
         chi += (counts[f] - expect) * (counts[f] - expect) / expect;
         printf("  face %2d (%d%s%s): %6.2f%%  expected %6.2f%%\n", f + 1, faces[f].value,
                *faces[f].label ? "/" : "", faces[f].label,
