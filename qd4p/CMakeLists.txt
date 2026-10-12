@@ -16,6 +16,10 @@
 # ---------------------------------------------------------------------------
 add_library(qd4p STATIC
     qd_version.c
+    qd_rng.c              # generator, unbiased ranges, stirring (portable)
+    qd_entropy_pico.c     # Pico-only: hardware seed, TRNG/ADC/event sources
 )
 target_include_directories(qd4p PUBLIC ${CMAKE_CURRENT_LIST_DIR})
-target_link_libraries(qd4p PUBLIC pico_stdlib)
+# pico_rand: the hardware seed (RP2350 TRNG); hardware_adc: the ADC source.
+# A program that never uses the ADC source doesn't carry its code.
+target_link_libraries(qd4p PUBLIC pico_stdlib pico_rand hardware_adc)

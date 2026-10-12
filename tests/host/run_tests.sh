@@ -11,7 +11,8 @@
 #
 #  Every test_*.c here is built against the library and run; each prints
 #  its own checks and exits non-zero on a failure. Library files that need
-#  the Pico SDK (only the hardware entropy sources) are left out.
+#  the Pico SDK (*_pico.c, the hardware entropy sources) are left out;
+#  qd_entropy_host.c stands in for them.
 # ---------------------------------------------------------------------------
 cd "$(dirname "$0")" || exit 1
 L=../../qd4p; B=build

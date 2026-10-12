@@ -14,7 +14,7 @@
  * (raises, success levels, criticals). It is built in layers, each usable
  * without the ones above it:
  *
- *     randomness       qd_rng_*      (milestone D1)
+ *     randomness       qd_rng_*      (D1; Pico sources in qd_entropy_pico.h)
  *     dice and decks   qd_die_*, qd_deck_*        (D2)
  *     roll engine      qd_roll_*     (D3)
  *     parser           qd_parse      (D4)
@@ -34,6 +34,7 @@
 #include <stdint.h>
 
 #include "qd_config.h"
+#include "qd_rng.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -42,7 +43,7 @@ extern "C" {
 /** Library version as numbers, for #if checks. */
 #define QD_VERSION_MAJOR 0
 #define QD_VERSION_MINOR 0
-#define QD_VERSION_PATCH 1
+#define QD_VERSION_PATCH 2
 
 /** Library version as text, e.g. "0.0.1". */
 const char *qd_version(void);

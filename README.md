@@ -20,7 +20,7 @@ Everything except the hardware entropy sources is portable C, built and
 tested on a PC as well as the Pico. No dynamic memory. No dependencies
 beyond the Pico SDK.
 
-Design: [docs/design.md](docs/design.md).
+Design: [docs/design.md](docs/design.md). What to check on the Pico after each milestone: [docs/hardware-checks.md](docs/hardware-checks.md).
 
 ## Build and try it
 
