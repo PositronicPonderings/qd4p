@@ -94,10 +94,14 @@ static void cmd_next(char *args)
         printf("%lu%s", (unsigned long)qd_rng_next32(), (i % 4 == 3 || i == n - 1) ? "\n" : "  ");
 }
 
-static void cmd_d(char *args)
+/* Roll plain dice. Takes "24d19" (the usual notation), "d20" or the
+ * older "d 19 24" form. The full notation (4d6k3, 2d6+3, ...) arrives
+ * with the parser in D4. */
+static void roll_plain(long count, long sides)
 {
-    long sides = arg_num(&args, 0), count = arg_num(&args, 10);
-    if (sides < 1 || count < 1) { printf("usage: d <sides> [count]   e.g. d 6 20\n"); return; }
+    if (sides < 1 || count < 1 || count > 100000) {
+        printf("usage: 24d19, d20, or d <sides> [count]\n"); return;
+    }
     long total = 0;
     for (long i = 0; i < count; i++) {
         int32_t v = qd_rng_between(1, (int32_t)sides);
@@ -106,6 +110,12 @@ static void cmd_d(char *args)
     }
     printf("total %ld, average %.2f (expected %.2f)\n", total, (double)total / count,
            (sides + 1) / 2.0);
+}
+
+static void cmd_d(char *args)
+{
+    long sides = arg_num(&args, 0), count = arg_num(&args, 10);
+    roll_plain(count, sides);
 }
 
 /* Chi-square limit at p = 0.001 (Wilson-Hilferty approximation). */
@@ -190,7 +200,7 @@ static const command_t commands[] = {
     { "seed",    "seed <n>: replay mode, same numbers every time", cmd_seed },
     { "live",    "leave replay: reseed from the hardware",      cmd_live    },
     { "next",    "next [n]: raw 32-bit numbers",                cmd_next    },
-    { "d",       "d <sides> [count]: roll dice, e.g. d 20 5",   cmd_d       },
+    { "d",       "roll dice: type 24d19 or d20 (or d <sides> [count])", cmd_d },
     { "test",    "test <sides> <rolls>: fairness check",        cmd_test    },
     { "stir",    "stir <text>: mix your own input in",          cmd_stir    },
     { "trng",    "trng [n]: stir in n hardware TRNG readings",  cmd_trng    },
@@ -225,6 +235,16 @@ static void run_line(char *line)
             commands[i].run(args);
             return;
         }
+    /* "24d19" or "d20" typed as the command itself */
+    char *d = strchr(line, 'd');
+    if (d && d[1] >= '1' && d[1] <= '9') {
+        char *end;
+        long count = (d == line) ? 1 : strtol(line, &end, 10);
+        if (d == line || end == d) {
+            long sides = strtol(d + 1, &end, 10);
+            if (!*end) { roll_plain(count, sides); return; }
+        }
+    }
     printf("unknown command '%s' - try help\n", line);
 }
 

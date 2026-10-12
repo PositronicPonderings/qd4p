@@ -17,7 +17,7 @@ these confirm the device agrees.
    2792088233  2554630222  2940343271  2244566231
    ```
 
-   and `seed 42` then `d 6 20` must print:
+   and `seed 42` then `20d6` must print:
 
    ```
    3 6 1 4 4 4 5 4 5 5 5 2 5 4 1 3 4 3 4 3
