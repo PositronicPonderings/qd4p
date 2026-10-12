@@ -1,0 +1,45 @@
+#!/bin/sh
+# SPDX-License-Identifier: MIT-0
+# SPDX-AI-Disclosure: ai-generated
+# SPDX-AI-Model: claude-opus-5-5
+# SPDX-AI-Provider: Anthropic
+# ---------------------------------------------------------------------------
+#  QD4P host tests: the library on a PC, no Pico needed.
+#
+#  Needs: a C compiler (cc / gcc / clang) and python3
+#  Run:   sh tests/host/run_tests.sh      (from anywhere)
+#
+#  Every test_*.c here is built against the library and run; each prints
+#  its own checks and exits non-zero on a failure. Library files that need
+#  the Pico SDK (only the hardware entropy sources) are left out.
+# ---------------------------------------------------------------------------
+cd "$(dirname "$0")" || exit 1
+L=../../qd4p; B=build
+mkdir -p $B
+CC=${CC:-cc}
+CF="-std=c11 -O2 -Wall -Wextra -Werror -I$L -I."
+LIB=$(ls $L/*.c | grep -v '_pico\.c$')
+pass=0; fail=0
+
+for t in test_*.c; do
+    name=${t%.c}
+    if ! $CC $CF -o $B/$name $t $LIB -lm 2> $B/$name.build.log; then
+        echo "BUILD FAIL  $name (see tests/host/$B/$name.build.log)"
+        fail=$((fail+1)); continue
+    fi
+    if ./$B/$name > $B/$name.log 2>&1; then
+        echo "PASS  $(tail -1 $B/$name.log)"; pass=$((pass+1))
+    else
+        echo "FAIL  $name:"; sed 's/^/      /' $B/$name.log; fail=$((fail+1))
+    fi
+done
+
+if python3 check_disclosure.py > $B/disclosure.log 2>&1; then
+    echo "PASS  $(head -1 $B/disclosure.log)"; pass=$((pass+1))
+else
+    echo "FAIL  disclosure:"; sed 's/^/      /' $B/disclosure.log; fail=$((fail+1))
+fi
+
+echo
+echo "$pass passed, $fail failed"
+[ $fail -eq 0 ]

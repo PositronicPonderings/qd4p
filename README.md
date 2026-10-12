@@ -20,4 +20,39 @@ Everything except the hardware entropy sources is portable C, built and
 tested on a PC as well as the Pico. No dynamic memory. No dependencies
 beyond the Pico SDK.
 
+Design: [docs/design.md](docs/design.md).
+
+## Build and try it
+
+Pico 2 / Pico 2 W, pico-sdk 2.3.1. Open the folder with the Raspberry Pi
+Pico VS Code extension, or:
+
+```
+cmake -S . -B build -DPICO_BOARD=pico2      # or pico2_w
+cmake --build build
+```
+
+Flash `build/examples/qd4p_console.uf2`, open the Pico's USB serial port
+(VS Code Serial Monitor, or `screen /dev/ttyACM0 115200`), press Enter and
+type `help`.
+
+## Tests on a PC
+
+```
+sh tests/host/run_tests.sh
+```
+
+Needs a C compiler and python3; no Pico.
+
+## Using QD4P in your project
+
+Copy the `qd4p/` folder, then in your CMakeLists.txt:
+
+```cmake
+add_subdirectory(qd4p)
+target_link_libraries(my_app pico_stdlib qd4p)
+```
+
+and `#include "qd4p.h"`.
+
 Licence: [MIT-0](LICENSE). How this code was made: [AI_DISCLOSURE.md](AI_DISCLOSURE.md).
