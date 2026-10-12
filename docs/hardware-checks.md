@@ -46,8 +46,8 @@ these confirm the device agrees.
    | --- | --- |
    | `custom 20 1 2 3 4 5 6*3` | `4 6 1 5 6 5 6 5 6 6 6 3 6 5 2 3 5 3 5 3` |
    | `d66 10` | `36 14 44 54 55 52 54 13 43 43` |
-   | `pct b2 2` | `units 4, tens 90 [00] 50 -> 4` then `units 6, tens [50] 60 50 -> 56` |
-   | `pct p1 2` | `units 4, tens [90] 00 -> 94` then `units 5, tens [60] 50 -> 65` |
+   | `pct b2 2` | `units 4, tens 90 [00] 50  -> 4` then `units 6, tens [50] 60 50  -> 56` |
+   | `pct p1 2` | `units 4, tens [90] 00  -> 94` then `units 5, tens [60] 50  -> 65` |
    | `deck poker 2` then `deal 8` | JD, JkR, 2C, 5H, JH, 8H, KH, 2H |
 
 2. **Weighted dice are fair to their weights.** `live`, then
