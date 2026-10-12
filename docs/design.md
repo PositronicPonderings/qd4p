@@ -161,7 +161,8 @@ All are compile-time settings in `qd4p/qd_config.h`.
 
 `qd_parse("4d6k3", &roll, &err)` compiles text once; the engine runs the
 compiled form every time. Apps that only use built-in rolls can leave the
-parser out. v1 notation:
+parser out. The full reference, with every rule and example, is
+[notation.md](notation.md); in summary:
 
 | Feature | Notation | Example |
 | --- | --- | --- |
@@ -175,14 +176,20 @@ parser out. v1 notation:
 | Implode | `i` `iN` | `1d10 i1 e10` |
 | Reroll | `rN` `irN` `rgN` `irgN` | `2d6 r1` |
 | Success counting | `tN` `tlN` `fN` `bN` `dsN` | `6d10 t8 f1` |
-| Matching sets | `sets` | `5d10 sets` |
+| Matching sets | `sets` | `5d10 sets` (not yet: with the game systems) |
 | Buckets | `[<3, =6]` | `100d6+2 [<3, =6]` |
 | Groups | `name:` | `base:4d6 t6 + stress:2d6 t6` |
 | Repeat, multi-roll | `N x roll`, `;` | `6 x 4d6k3` |
-| Label | `(Label)` | `(Bite) 1d20+14` |
-| System shortcut | `name args` | `sw8`, `coc 65 b2`, `vtm 6 h2` |
+| Label, comment | `(Label)`, `! text` | `(Bite) 1d20+14 ! vs AC 15` |
+| System shortcut | `name args` | `sw8`, `coc 65 b2`, `vtm 6 h2` (D5) |
 
-**Percentile bonus and penalty dice (CoC):** `d% b2` rolls two extra tens
+Decided in D4: usual maths precedence; spaces optional and keywords in any
+case; after dice `d1` means drop (a d1 die is `+1d1`); a bracket starting
+with a letter is a label unless it starts with dice or a group name;
+`qd_format` writes any parsed roll back as text that parses to the same
+roll.
+
+**Percentile bonus and penalty dice (CoC, D5):** `d% b2` rolls two extra tens
 dice and keeps the best, `d% p1` one extra and keeps the worst, up to 3 each
 way; bonus and penalty cancel one for one. Every tens die stays in the
 result, marked kept or dropped.
@@ -246,7 +253,7 @@ Mass rolls use the same rules and return counts.
 3. **D2 Dice and decks.**
 4. **D3 Roll engine** (rolls built in C). First point the Dice Roller can
    use. Done: `qd_roll.h`.
-5. **D4 Parser.**
+5. **D4 Parser.** Done: `qd_parse.h`, [notation.md](notation.md).
 6. **D5 Outcomes and systems.**
 7. **D6 Rerolls and roll sets.**
 8. **D7 Stats for nerds and odds.**

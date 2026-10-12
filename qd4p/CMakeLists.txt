@@ -20,6 +20,7 @@ add_library(qd4p STATIC
     qd_dice.c             # standard, custom, percentile dice (portable)
     qd_deck.c             # poker, tarot and custom decks (portable)
     qd_roll.c             # roll engine: pools, modifiers, sums, counting (portable)
+    qd_parse.c            # dice notation to a roll and back (portable)
     qd_entropy_pico.c     # Pico-only: hardware seed, TRNG/ADC/event sources
 )
 target_include_directories(qd4p PUBLIC ${CMAKE_CURRENT_LIST_DIR})

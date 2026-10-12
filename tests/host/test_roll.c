@@ -16,12 +16,6 @@
 #include "qd4p.h"
 #include "qd_test.h"
 
-typedef struct {
-    int spec, seed, n, total, successes, failures;
-    const int16_t *values;
-    const uint16_t *flags, *parents;
-} golden_t;
-
 #include "roll_goldens.h"
 
 static const qd_face_t loaded_faces[6] = {

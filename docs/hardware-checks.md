@@ -106,3 +106,28 @@ an implosion, `8*` a success, `10**` a double success, `1x` a failure.
    `4d6 k0` rolls with a note that keeping 0 dice always totals 0.
 4. **Maths.** `1d20 - 1d4 * 2` works left to right for now: (d20 - d4) x 2.
    `d%` is a d100.
+
+## D4 Parser
+
+Since D4 the console reads rolls with the real parser: spaces are optional,
+maths follows the usual order, and mistakes are underlined. Each roll is
+first echoed back in tidy form (what `qd_format` writes), then rolled.
+`notation` lists everything briefly; `docs/notation.md` is the full manual.
+
+1. **Same rolls as before.** `seed 42`, then `4d6k3` gives
+   `4d6 k3: 3 6 (1) 4  = 13`. `seed 42`, then `10d6e6k8+4` gives total 42,
+   as in D3. (The PC tests parse every golden roll as written, without
+   spaces, in capitals and as re-written by `qd_format`.)
+2. **Precedence.** `1d20 - 1d4 * 2`: the total is the d20 minus twice the
+   d4. `(1d8+2)*2` doubles the lot.
+3. **Labels, comments, repeats, several rolls.**
+   `(Bite) 1d20+14 ! vs AC 15` shows the label and comment.
+   `3 x 2d6` rolls three times. `2d6; 1d8+1d4` rolls both.
+4. **Errors point at the problem.** Try `4d6 k3 +`, `4 d6`, `(1d6+2`,
+   `2d{nope}`, `4d6 k3 k2`, `dd60`: each is underlined with a message.
+5. **parse.** `parse (1d8+2)*2 [<3]` shows how it was read (the dice, and
+   the sum as a stack: `[dice 1] 2 + 2 *`) without rolling.
+6. **Custom dice in rolls.** `custom 0 1 2 3 4 5 6*3` saves a loaded die;
+   `3d{custom} k2` rolls it.
+7. **Groups.** `base:4d6 t6 + stress:2d6 t6` shows both groups by name and
+   the successes.

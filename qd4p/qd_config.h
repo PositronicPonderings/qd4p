@@ -71,6 +71,33 @@
 #define QD_MAX_NAME             7
 #endif
 
+/* --- Notation (the parser) ---------------------------------------------- */
+
+/** Characters in a roll's label: "(Sneak attack) 1d20+7". */
+#ifndef QD_MAX_ROLL_LABEL
+#define QD_MAX_ROLL_LABEL       23
+#endif
+
+/** Characters in a roll's comment: "1d20+7 ! flanking the ogre". */
+#ifndef QD_MAX_COMMENT
+#define QD_MAX_COMMENT          47
+#endif
+
+/** Most repeats in "6 x 4d6k3". */
+#ifndef QD_MAX_REPEAT
+#define QD_MAX_REPEAT           20
+#endif
+
+/** Characters in a custom die's name: "2d{Loaded d6}". */
+#ifndef QD_MAX_DIE_NAME
+#define QD_MAX_DIE_NAME         15
+#endif
+
+/** Brackets inside brackets: "((1d6+1)*2)" is two deep. */
+#ifndef QD_MAX_NESTING
+#define QD_MAX_NESTING          8
+#endif
+
 /* --- Dice and decks ------------------------------------------------------ */
 
 /** Faces on a custom die (matches the Dice Roller settings store). */

@@ -5,8 +5,8 @@ Dice, cards and game results for the Raspberry Pi Pico 2, in plain C. Roll
 odds?", and let the library work out raises, success levels and messy
 criticals so your program doesn't have to.
 
-Work in progress: randomness, dice and decks and the roll engine are done;
-the parser is next. The layers, each usable on its own:
+Work in progress: randomness, dice and decks, the roll engine and the
+dice notation parser are done; game systems are next. The layers, each usable on its own:
 
 | Layer | What it does |
 |---|---|
@@ -21,7 +21,7 @@ Everything except the hardware entropy sources is portable C, built and
 tested on a PC as well as the Pico. No dynamic memory. No dependencies
 beyond the Pico SDK.
 
-Design: [docs/design.md](docs/design.md). What to check on the Pico after each milestone: [docs/hardware-checks.md](docs/hardware-checks.md).
+Dice notation: [docs/notation.md](docs/notation.md). Design: [docs/design.md](docs/design.md). What to check on the Pico after each milestone: [docs/hardware-checks.md](docs/hardware-checks.md).
 
 ## Build and try it
 
@@ -54,15 +54,16 @@ add_subdirectory(qd4p)
 target_link_libraries(my_app pico_stdlib qd4p)
 ```
 
-and `#include "qd4p.h"`. Until the parser arrives, rolls are built in C:
+and `#include "qd4p.h"`:
 
 ```c
-qd_roll_t roll;
+qd_parsed_t roll;
+qd_parse_error_t err;
 qd_result_t res;
-qd_roll_init(&roll);
-qd_pool_t *p = qd_roll_dice(&roll, 4, 6);     /* 4d6 */
-qd_pool_keep(p, QD_KEEP_HIGH, 3);              /* keep the highest 3 */
-qd_roll_run(&roll, &res);                      /* res.total, res.dice[] */
+if (qd_parse("4d6k3 + 2", &roll, &err))      /* parse once */
+    qd_roll_run(&roll.roll, &res);           /* roll as often as you like: res.total, res.dice[] */
 ```
+
+Rolls can also be built directly in C with `qd_roll.h`, without the parser.
 
 Licence: [MIT-0](LICENSE). How this code was made: [AI_DISCLOSURE.md](AI_DISCLOSURE.md).
