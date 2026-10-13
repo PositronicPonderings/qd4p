@@ -9,6 +9,7 @@ text -> asset -> text -> asset gives the same bytes, and the console's
 built-in sample header is up to date with its text.
 """
 import os
+import re
 import subprocess
 import sys
 
@@ -48,6 +49,23 @@ sample = tables.build(tables.parse_text(open(os.path.join(ROOT, "examples/tables
 header = open(os.path.join(ROOT, "examples/tables/sample_tables.h"), encoding="utf-8").read()
 check(tables.c_header(sample, "sample_tables") == header,
       "examples/tables/sample_tables.h is up to date (rebuild it with tables.py)")
+
+
+def c_array_bytes(src):
+    """The bytes a C compiler would see in a --c header, comments removed."""
+    body = re.sub(r"/\*.*?\*/", "", src[src.index("{") + 1:src.rindex("}")], flags=re.S)
+    return bytes(int(x, 16) for x in re.findall(r"0x[0-9a-f]{2}", body))
+
+
+check(c_array_bytes(header) == sample, "the commented C array holds exactly the asset's bytes")
+check("/* -- entry 5 of 5: 12 -- */" in header and '/* roll "2d6\\0" */' in header
+      and "/* kind 1: roll again on this table (u8) */" in header,
+      "the C array is commented field by field")
+awkward = tables.build(tables.parse_text(
+    "table Odd */ name /*\nroll 1d4\n1-2 a */ b /* c ??/ d\\\n3-4 caf\u00e9 \u00bd\n"))
+src = tables.c_header(awkward, "awkward")
+check(c_array_bytes(src) == awkward, "text with */, /*, ??/ and accents can't break the comments")
+check("caf\u00e9" in src, "accented letters show as themselves in the comments")
 
 e, w = errors_of("table A\nroll 1d6\n1-3 x\n3-6 y\n")
 check(any("overlaps" in x for x in e), "overlapping ranges are an error")

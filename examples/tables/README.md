@@ -100,7 +100,30 @@ python3 examples/tables/tables.py dump   tables.bin > recovered.txt
 recovered and edited.
 
 `--c` writes the asset as a C array, for building tables into a program
-(the console's samples are built this way, from `sample_tables.txt`).
+(the console's samples are built this way, from `sample_tables.txt`). Every
+field is commented, so the array can be read as it stands:
+
+```c
+    0x51, 0x44, 0x54, 0x31,                          /* "QDT1" magic: a QD4P table asset, format 1 */
+    0x06, 0x00,                                      /* 6 tables (u16, little-endian) */
+    ...
+    /* ==== table 1, byte 32: Forest encounters ==== */
+    0x46, 0x6f, 0x72, 0x65, 0x73, 0x74, 0x20, 0x65,  /* name "Forest e" */
+    0x6e, 0x63, 0x6f, 0x75, 0x6e, 0x74, 0x65, 0x72,  /*      "ncounter" */
+    0x73, 0x00,                                      /*      "s\0" */
+    0x32, 0x64, 0x36, 0x00,                          /* roll "2d6\0" */
+    0x05, 0x00,                                      /* 5 entries (u16) */
+    /* -- entry 1 of 5: 2 -- */
+    0x02, 0x00, 0x00, 0x00,                          /* low  2 (i32) */
+    0x02, 0x00, 0x00, 0x00,                          /* high 2 (i32) */
+    0x00,                                            /* kind 0: text to show (u8) */
+    0x00,                                            /* times 0: unused for text (u8) */
+    0x41, 0x6e, 0x20, 0x6f, 0x77, 0x6c, 0x62, 0x65,  /* text "An owlbe" */
+```
+
+Text is shown beside its bytes, eight to a line; `\0` is the byte that ends
+each string. Anything in a table's text that could end a C comment early
+(`*/`) is written safely in the comment, and the bytes are never changed.
 
 ## On the device
 
