@@ -303,7 +303,10 @@ static int32_t contrib(const qd_pool_t *p, int16_t v, const char *label, int16_t
 /* The sum as coefficient x pool total + constant, if it is that simple. */
 static bool linear(const qd_roll_t *r, int32_t coef[QD_MAX_POOLS], int64_t *constant)
 {
-    struct { int64_t c[QD_MAX_POOLS]; int64_t k; } st[QD_MAX_ROLL_OPS];
+    /* The sum, worked out as a little stack machine: each entry is
+     * "coefficients of each pool, plus a constant". Static, not on the
+     * stack: at the defaults it's 1.7 KB, most of a Pico's 2 KB stack. */
+    static struct { int64_t c[QD_MAX_POOLS]; int64_t k; } st[QD_MAX_ROLL_OPS];
     int top = 0;
     for (int i = 0; i < r->op_count; i++) {
         const qd_op_t *o = &r->ops[i];

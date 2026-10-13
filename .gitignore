@@ -4,3 +4,4 @@ __pycache__/
 *.pyc
 .vscode/
 examples/pc/qd4p_pc
+build-defines/

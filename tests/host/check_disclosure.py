@@ -27,7 +27,7 @@ problems, checked = [], 0
 if not os.path.exists(os.path.join(ROOT, "AI_DISCLOSURE.md")):
     problems.append("AI_DISCLOSURE.md is missing")
 for root, dirs, files in os.walk(ROOT):
-    dirs[:] = [d for d in dirs if d not in ("build", "build-host", ".git", "__pycache__")]
+    dirs[:] = [d for d in dirs if not d.startswith("build") and d not in (".git", "__pycache__")]
     for f in files:
         if f in THIRD_PARTY or not (f.endswith((".c", ".h", ".py", ".sh")) or f == "CMakeLists.txt"):
             continue

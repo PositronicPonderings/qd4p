@@ -152,7 +152,7 @@ for (int i = 0; i < r.steps; i++)                      /* the working */
 - The asset is read where it lies, never copied, so it can live in flash
   or an asset pack. `tbl_open` checks every offset and string once, so a
   damaged asset is refused rather than read past its end.
-- Limits (`table.h`): `TBL_DEPTH` 8, `TBL_TEXT` 320, `TBL_STEPS` 24.
+- Limits (`table.h`, each settable from the build): `TBL_DEPTH` 4 (links within links; each level costs 216 bytes of stack), `TBL_TEXT` 320, `TBL_STEPS` 24.
 - How it uses QD4P: `qd_roll_text` rolls each table's dice, and
   `qd_expand_ex` expands each entry, with a hook that rolls `[links]` on
   the named table. The rest (the asset, "Roll twice", the working) is this

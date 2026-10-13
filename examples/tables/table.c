@@ -190,6 +190,11 @@ static uint32_t pick(ctx_t *c, int index, int depth, uint8_t kind, int32_t *v)
     return 0;
 }
 
+/* Out of line (GCC, Clang) so its message buffer isn't carried in
+ * roll_into's frame, which repeats once per level of [links]. */
+#if defined(__GNUC__)
+__attribute__((noinline))
+#endif
 static int no_entry(ctx_t *c, int32_t v, char *out, int room)
 {
     char msg[32];

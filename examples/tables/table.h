@@ -33,9 +33,23 @@
 extern "C" {
 #endif
 
-#define TBL_DEPTH   8                   /**< tables inside tables */
+/* Limits. Each can be set from the build (-DTBL_DEPTH=6) instead.
+ *
+ * TBL_DEPTH is how deep [links] may go: a table linking to a table linking
+ * to a table is 3. Each level costs 216 bytes of stack and 452 of RAM (its
+ * working, kept in a static array). At 4, the deepest roll needs about
+ * 1.6 KB of stack, inside the 2 KB the Pico SDK gives main(); 2.1 KB only
+ * if a table's dice also nest brackets eight deep. Real tables rarely link
+ * past 3 (tests/size/stack.py works these figures out). */
+#ifndef TBL_DEPTH
+#define TBL_DEPTH   4                   /**< tables inside tables */
+#endif
+#ifndef TBL_TEXT
 #define TBL_TEXT    320                 /**< characters in a result */
+#endif
+#ifndef TBL_STEPS
 #define TBL_STEPS   24                  /**< rolls kept as the working */
+#endif
 
 /** An open table asset. Points at the bytes; copies nothing. */
 typedef struct {

@@ -90,6 +90,23 @@ static void note(out_t *o, int32_t v, const char *what, int n)
     r->what[n] = '\0';
 }
 
+/* One {roll}: roll it and write its value. Out of line (GCC, Clang): an
+ * app's [link] hook may call qd_expand_ex again, once per level, and this
+ * keeps the number's buffer out of every level's stack frame. */
+#if defined(__GNUC__)
+__attribute__((noinline))
+#endif
+static bool roll_in(out_t *o, const char *what, int n)
+{
+    int32_t v;
+    if (!qd_roll_textn(what, n, &v))
+        return false;
+    char num[16];
+    put(o, num, snprintf(num, sizeof(num), "%ld", (long)v));
+    note(o, v, what, n);
+    return true;
+}
+
 int qd_expand_ex(const char *text, char *out, int size, qd_expand_info_t *info,
                  qd_expand_hook_t hook, void *ctx)
 {
@@ -104,15 +121,10 @@ int qd_expand_ex(const char *text, char *out, int size, qd_expand_info_t *info,
             s += 2;
         } else if (*s == '{') {
             const char *e = strchr(s, '}');
-            int32_t v;
-            if (!e || !qd_roll_textn(s + 1, (int)(e - s - 1), &v)) {
+            if (!e || !roll_in(&o, s + 1, (int)(e - s - 1))) {
                 flag(&o, QD_EXPAND_BAD);
                 put(&o, "{?}", 3);
                 if (!e) break;
-            } else {
-                char num[16];
-                put(&o, num, snprintf(num, sizeof(num), "%ld", (long)v));
-                note(&o, v, s + 1, (int)(e - s - 1));
             }
             s = e + 1;
         } else if (*s == '[' && hook && strchr(s, ']')) {

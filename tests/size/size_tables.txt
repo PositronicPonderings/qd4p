@@ -1,0 +1,30 @@
+# The two tables the size check uses: 12 entries each, one with dice in
+# its text. Built into size_tables.h by measure.py with examples/tables/tables.py.
+table Wandering monsters
+roll 2d6
+2      A dragon, asleep on a hoard
+3      {1d4+1} ghouls, hungry
+4      A troll under the bridge
+5      {2d6} goblins with spears
+6      A lost merchant and his mule
+7      Nothing but wind in the trees
+8      {1d6} wolves, circling
+9      A wandering knight seeking a quest
+10     {1d3} ogres arguing over a sheep
+11     A hermit who knows the way
+12     A wyvern, diving from above
+
+table Inn names
+roll d12
+1      The Prancing Pony
+2      The Green Dragon
+3      The Rusty Anchor
+4      The Sleeping Giant
+5      The Golden Goose
+6      The Broken Wheel
+7      The Laughing Fox
+8      The Silver Stag
+9      The Drunken Dwarf
+10     The Crooked Crown
+11     The Red Lantern
+12     The Wandering Bard

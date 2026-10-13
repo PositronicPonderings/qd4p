@@ -356,26 +356,22 @@ static bool dice(ps_t *ps, int start, long count, const char *name)
  * ======================================================================== */
 static bool sum(ps_t *ps);
 
-static bool primary(ps_t *ps)
-{
-    skip_space(ps);
-    int start = ps->i;
-    char c = peek(ps);
+/* Keep a function out of line (GCC and Clang), so its locals aren't
+ * carried in its caller's stack frame. */
+#if defined(__GNUC__)
+#define QD_NOINLINE __attribute__((noinline))
+#else
+#define QD_NOINLINE
+#endif
 
-    if (c == '(') {
-        if (ps->depth >= QD_MAX_NESTING)
-            return fail(ps, start, 1, "brackets nested too deep (most %d)", QD_MAX_NESTING);
-        ps->i++;
-        ps->depth++;
-        if (!sum(ps))
-            return false;
-        skip_space(ps);
-        if (peek(ps) != ')')
-            return fail(ps, ps->i, 1, "missing ')' for the '(' at column %d", start + 1);
-        ps->i++;
-        ps->depth--;
-        return true;
-    }
+/* A number, dice, or a group name and its dice: everything a primary can
+ * be except a bracket. Out of line on purpose: the parser calls itself once
+ * per level of brackets, and if this were inlined into primary() every
+ * level would carry the dice code's locals too (about 100 bytes a level,
+ * on a 2 KB stack). */
+static QD_NOINLINE bool value(ps_t *ps, int start)
+{
+    char c = peek(ps);
 
     /* A group name: letters (and digits, _) right before a ':'. */
     char name[QD_MAX_NAME + 1];
@@ -412,6 +408,29 @@ static bool primary(ps_t *ps)
     if (!c)
         return fail(ps, ps->i, 1, "the roll stops too soon: a number, dice or '(' should come next");
     return fail(ps, ps->i, 1, "expected a number, dice or '(' instead of '%c'", c);
+}
+
+/* A bracketed sum, or a value. */
+static bool primary(ps_t *ps)
+{
+    skip_space(ps);
+    int start = ps->i;
+
+    if (peek(ps) == '(') {
+        if (ps->depth >= QD_MAX_NESTING)
+            return fail(ps, start, 1, "brackets nested too deep (most %d)", QD_MAX_NESTING);
+        ps->i++;
+        ps->depth++;
+        if (!sum(ps))
+            return false;
+        skip_space(ps);
+        if (peek(ps) != ')')
+            return fail(ps, ps->i, 1, "missing ')' for the '(' at column %d", start + 1);
+        ps->i++;
+        ps->depth--;
+        return true;
+    }
+    return value(ps, start);
 }
 
 static bool unary(ps_t *ps)
