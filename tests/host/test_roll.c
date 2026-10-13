@@ -431,9 +431,32 @@ static void test_distributions(void)
     CHECK(kept == 2L * N && fabs(share - 1 / 36.0) < 0.0015, "r1: ones left %.4f (expect 0.0278)", share);
 }
 
+/* A full roll: the builder returns NULL, chained pool calls do nothing,
+ * and the roll is refused rather than rolled short. */
+static void test_full_chain(void)
+{
+    static qd_roll_t r;
+    static qd_result_t res;
+    qd_roll_init(&r);
+    for (int k = 0; k < QD_MAX_POOLS; k++)
+        qd_roll_dice(&r, 1, 6);
+    qd_pool_t *none = qd_roll_dice(&r, 4, 6);
+    qd_pool_keep(none, QD_KEEP_HIGH, 3);
+    qd_pool_advantage(none, 1);
+    qd_pool_success(none, qd_test_ge(5));
+    qd_pool_twice(none, qd_test_eq(6));
+    qd_pool_failure(none, qd_test_le(1));
+    qd_pool_botch(none, qd_test_le(1));
+    bool steps = qd_pool_explode(none, qd_test_max(), true) || qd_pool_implode(none, qd_test_min()) ||
+                 qd_pool_reroll(none, qd_test_le(1), false);
+    CHECK(!none && !steps && qd_roll_run(&r, &res) == QD_ERR_FULL,
+          "a full roll: pool calls on NULL do nothing, and the roll is refused");
+}
+
 int main(void)
 {
     qd_die_custom(&loaded, loaded_faces, 6);
+    test_full_chain();
     test_goldens();
     qd_rng_init_hw();
     test_sums();

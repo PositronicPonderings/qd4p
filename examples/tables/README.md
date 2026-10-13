@@ -42,7 +42,7 @@ table Bandit leaders
 
 - **`table <name>`** starts a table. Names can have spaces and are matched
   in any case. Each name must be different.
-- **`roll <dice>`** (optional) is any [dice notation](notation.md): `2d6`,
+- **`roll <dice>`** (optional) is any [dice notation](../../docs/manual/05-notation.md): `2d6`,
   `d%`, `dd66`, `1d20 + 2`, even `coc 50`. Leave it out and the table rolls
   1dN, where N is its highest range: the `Bandit leaders` table above rolls
   a d4.
@@ -73,8 +73,8 @@ table Bandit leaders
   (successes).
 - "Roll twice" ignores itself: if a roll-again entry comes up during the
   extra rolls, that roll is made again.
-- Links can go into links (`[Treasure]` -> `[Trinket]`) up to 8 deep; a
-  table that links back to itself stops there with "...".
+- Links can go into links (`[Treasure]` -> `[Trinket]`) up to 4 deep
+  (`TBL_DEPTH`); a table that links back to itself stops there with "...".
 
 ## Checking and building
 

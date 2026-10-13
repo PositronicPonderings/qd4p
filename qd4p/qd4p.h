@@ -17,7 +17,7 @@
  *     randomness       qd_rng_*      (D1; Pico sources in qd_entropy_pico.h)
  *     dice and decks   qd_die_*, qd_roll_percentile, qd_deck_*  (D2)
  *     roll engine      qd_roll_*     (D3)
- *     parser           qd_parse, qd_format  (D4; notation in docs/notation.md)
+ *     parser           qd_parse, qd_format  (D4; notation in docs/manual/05-notation.md)
  *     game systems     qd_sys_*, qd_sys_outcome  (D5)
  *     rerolls, sets    qd_reroll_*, qd_set_run  (D6)
  *     stats, odds      qd_stats_*, qd_odds  (D7)

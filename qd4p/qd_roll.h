@@ -168,8 +168,13 @@ typedef struct {
     char      name[QD_MAX_NAME + 1];    /**< group name, "" if none ("base", "stress") */
 } qd_pool_t;
 
+/* Every qd_pool_* function does nothing when given NULL (a builder that
+ * ran out of room returns NULL), so they can be chained safely; the roll
+ * remembers the failure and qd_roll_run refuses it with QD_ERR_FULL. */
+
 /** Advantage (n > 0) or disadvantage (n < 0): roll |n| extra dice and set
- *  aside the |n| lowest or highest before anything explodes. */
+ *  aside the |n| lowest or highest before anything explodes. Sets the
+ *  level (calling again replaces it): pass advantage minus disadvantage. */
 void qd_pool_advantage(qd_pool_t *p, int n);
 
 /** Add an explode, implode or reroll step (up to QD_MAX_POOL_STEPS).

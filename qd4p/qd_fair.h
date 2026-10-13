@@ -39,7 +39,7 @@
  *   What it doesn't promise: the key is the device's alone, so a device
  *   with doctored firmware could choose a key it likes before the session.
  *   Fair mode shows the device didn't change anything DURING the session;
- *   trusting the device's firmware is a separate matter. docs/fair-mode.md
+ *   trusting the device's firmware is a separate matter. docs/manual/07-fair-mode.md
  *   has the details.
  *
  * WHILE FAIR MODE IS ON

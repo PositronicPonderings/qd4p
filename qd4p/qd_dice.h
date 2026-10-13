@@ -21,7 +21,7 @@
  *     qd_roll_percentile(2, &p);                   // CoC with two bonus dice
  *     // p.result 1..100, p.tens[] every tens die rolled, p.kept which one counted
  *
- * FACES, NOT JUST VALUES
+ * FACES AS WELL AS VALUES
  *   Every roll reports which face came up (0 = the first face) as well as
  *   its value. A die can have two faces showing 3, or faces whose value is
  *   0 but whose label is "+"; the face index keeps them apart, which is
@@ -68,7 +68,7 @@ typedef struct {
 } qd_face_roll_t;
 
 /** A standard die with faces 1..sides (sides 1 to 32767, so every value
- *  fits in an int16_t; DCC's d3, d5, d7, d14, d16, d24 and d30 are just
+ *  fits in an int16_t; DCC's d3, d5, d7, d14, d16, d24 and d30 are plain
  *  standard dice). Returns false if sides is 0 or too big. */
 bool qd_die_standard(qd_die_t *die, uint16_t sides);
 

@@ -67,7 +67,7 @@ int32_t qd_rng_between(int32_t lo, int32_t hi);
  *  this uses the RP2350 TRNG (qd_entropy_pico.c). On a PC build it uses
  *  the clock and the address of a stack variable: fine for trying things,
  *  not for anything that matters. Call once at boot; calling again later
- *  just stirs in fresh hardware randomness. Ignored in fair mode. */
+ *  stirs in fresh hardware randomness on top. Ignored in fair mode. */
 void qd_rng_init_hw(void);
 
 /** Replay mode: replace the state with one built from `seed`, so the same

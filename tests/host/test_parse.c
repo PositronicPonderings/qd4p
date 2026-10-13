@@ -212,6 +212,8 @@ static void test_errors(void)
         { "2x3",            1,  "no dice" },
         { "2d6vhard",       5,  "vs needs a number" },
         { "atkins",         1,  "" },
+        { "sw",             1,  "sw needs the trait die" },
+        { "sw + 2",         1,  "sw needs the trait die" },
         { "(This label is far too long) 1d6", 1, "at most 23" },
         { "6d10 ds10",      6,  "ds goes after t" },
         { "chk d30 vs 5",   5,  "else write 1d30 vs 5" },

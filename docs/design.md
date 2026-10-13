@@ -95,7 +95,7 @@ time; nothing can make it less random than the hardware seed alone.
   key (so it shows the rolls weren't changed, not that the firmware is
   honest); the checker is the console itself, so it can't disagree with
   the device. Exporting the device's own roll log is a later option.
-  Details: [fair-mode.md](fair-mode.md).
+  Details: [the fair-mode guide](manual/07-fair-mode.md).
 
 ## Dice and decks
 
@@ -107,7 +107,7 @@ time; nothing can make it less random than the hardware seed alone.
 | Percentile | units die plus tens dice | d100, CoC bonus/penalty tens dice |
 | Deck | up to 255 cards: value, suit/group, label; dealt/discard state | poker with jokers, tarot, custom |
 
-- **Faces, not just values:** every die records which face came up, so
+- **Faces as well as values:** every die records which face came up, so
   labels, duplicate values and non-numeric faces stay exact, and stats can
   compare against each face's expected share.
 - **Weights:** cumulative-weight lookup; all-weights-1 dice take a fast path.
@@ -168,7 +168,7 @@ All are compile-time settings in `qd4p/qd_config.h`.
 `qd_parse("4d6k3", &roll, &err)` compiles text once; the engine runs the
 compiled form every time. Apps that only use built-in rolls can leave the
 parser out. The full reference, with every rule and example, is
-[notation.md](notation.md); in summary:
+[the notation guide](manual/05-notation.md); in summary:
 
 | Feature | Notation | Example |
 | --- | --- | --- |
@@ -210,7 +210,7 @@ check roll expressions.
 A system is a builder (puts the game's dice at the start of a roll; maths
 can follow) plus an outcome rule (`qd_sys_outcome`: text, detail, level,
 pass, margin, degrees). The roll records which system and target it has, so
-the formatter writes the shortcut back. Full rules: notation.md, "Game
+the formatter writes the shortcut back. Full rules: manual/05-notation.md, "Game
 systems". Done in D5 (`qd_sys.h`):
 
 | System | Shortcut | Outcome |
@@ -255,7 +255,7 @@ reports matching dice.
   generator draws, each weighted) up to 50,000 rolls; otherwise 10,000
   simulated rolls, marked approximate. Mean, spread, range, the chance of
   each value, of passing, and of each outcome level. The generator and
-  stats are left untouched. See odds-and-stats.md.
+  stats are left untouched. See manual/06-odds-and-stats.md.
 - **Stats for nerds (D7):** an observer on the engine counts every die
   rolled, by kind: count, sum, sum of squares, min, max, face histogram;
   mean and spread against a fair die's, natural highs and lows, and a
@@ -282,14 +282,14 @@ reports matching dice.
 3. **D2 Dice and decks.**
 4. **D3 Roll engine** (rolls built in C). First point the Dice Roller can
    use. Done: `qd_roll.h`.
-5. **D4 Parser.** Done: `qd_parse.h`, [notation.md](notation.md).
+5. **D4 Parser.** Done: `qd_parse.h`, [the notation guide](manual/05-notation.md).
 6. **D5 Outcomes and systems.** Done: `qd_sys.h`.
 7. **D6 Rerolls and roll sets.** Done: `qd_reroll_*` in `qd_roll.h`,
    `qd_set_run` and `(N x roll) kN` in `qd_parse.h`.
 8. **D7 Stats for nerds and odds.** Done: `qd_stats.h`, `qd_odds.h`.
 9. **D8 Random tables.** Done: `qd_text.h` in the library; the table
    system as an example in `examples/tables/`.
-10. **D9 Fair mode.** Done: `qd_fair.h`, [fair-mode.md](fair-mode.md),
+10. **D9 Fair mode.** Done: `qd_fair.h`, [the fair-mode guide](manual/07-fair-mode.md),
     the PC checker in `examples/pc`.
 11. **D10 Manual and v1.0.**
 

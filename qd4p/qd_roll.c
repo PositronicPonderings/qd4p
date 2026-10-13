@@ -232,8 +232,13 @@ bool qd_roll_bucket(qd_roll_t *r, qd_test_t t)
     return true;
 }
 
+/* Every qd_pool_* setter does nothing with a NULL pool, so a builder that
+ * ran out of room (and returned NULL) can be chained without a check:
+ * qd_pool_keep(qd_roll_dice(&r, 4, 6), QD_KEEP_HIGH, 3). The roll itself
+ * remembers the failure, and qd_roll_run refuses it with QD_ERR_FULL. */
 void qd_pool_advantage(qd_pool_t *p, int n)
 {
+    if (!p) return;
     if (n > 127) n = 127;
     if (n < -127) n = -127;
     p->advantage = (int8_t)n;
@@ -241,7 +246,7 @@ void qd_pool_advantage(qd_pool_t *p, int n)
 
 static bool add_step(qd_pool_t *p, uint8_t kind, qd_test_t when, bool forever)
 {
-    if (p->step_count >= QD_MAX_POOL_STEPS)
+    if (!p || p->step_count >= QD_MAX_POOL_STEPS)
         return false;
     qd_step_t *s = &p->steps[p->step_count++];
     s->kind = kind;
@@ -267,14 +272,15 @@ bool qd_pool_reroll(qd_pool_t *p, qd_test_t when, bool forever)
 
 void qd_pool_keep(qd_pool_t *p, qd_keep_t how, uint16_t n)
 {
+    if (!p) return;
     p->keep = (uint8_t)how;
     p->keep_n = n;
 }
 
-void qd_pool_success(qd_pool_t *p, qd_test_t t) { p->success = t; }
-void qd_pool_twice(qd_pool_t *p, qd_test_t t)   { p->twice = t; }
-void qd_pool_failure(qd_pool_t *p, qd_test_t t) { p->failure = t; }
-void qd_pool_botch(qd_pool_t *p, qd_test_t t)   { p->botch = t; }
+void qd_pool_success(qd_pool_t *p, qd_test_t t) { if (p) p->success = t; }
+void qd_pool_twice(qd_pool_t *p, qd_test_t t)   { if (p) p->twice = t; }
+void qd_pool_failure(qd_pool_t *p, qd_test_t t) { if (p) p->failure = t; }
+void qd_pool_botch(qd_pool_t *p, qd_test_t t)   { if (p) p->botch = t; }
 
 /* ========================================================================
  * Faces of a pool's die

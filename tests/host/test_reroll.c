@@ -46,7 +46,7 @@ static void test_chosen(void)
     for (uint64_t seed = 1; seed <= 300; seed++) {
         qd_rng_seed_fixed(seed);
         qd_roll_run(&p.roll, &res);
-        /* the reroll's draw is simply the next one from the generator */
+        /* the reroll's draw is the generator's next one */
         qd_rng_seed_fixed(seed);
         qd_roll_run(&p.roll, &copy);
         int16_t next = (int16_t)qd_rng_between(1, 6);

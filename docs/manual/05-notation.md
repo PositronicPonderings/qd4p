@@ -1,12 +1,10 @@
-# QD4P dice notation
+# 5. Dice notation
 
-This is the complete reference for the text QD4P understands: what you type
-into the Dice Roller, what `qd_parse()` reads, and what `qd_format()` writes
-back. Every example on this page is something you can type into
-`qd4p_console` and see rolled.
+Everything you can type as a roll: into the Dice Roller, into the console, or into [`qd_parse`](reference/parse.md#qd_parse). Every example on this page is a real roll, and the test suite checks each one, so if it's written here, it works.
 
-QD4P's notation is inspired by Dice Maiden's, and most Dice Maiden rolls work
-unchanged. Where the two differ, this page says so.
+**The short version:** `NdS` is N dice of S sides, added up. Modifiers follow the dice with no space needed (`4d6k3`: keep the best 3). Maths works the way it did at school (`(1d8 + 2) * 2`). A target goes at the end (`vs 15`), and game words stand for a game's dice (`atk adv + 5 vs 15`, `sw8`, `coc 65 b1`). The [quick reference](#quick-reference) below has all of it on one screen.
+
+QD4P's notation is inspired by Dice Maiden's, and most Dice Maiden rolls work unchanged. Where the two differ, [this page says so](#differences-from-dice-maiden). Dice notation has no standards body, which is the one thing it has going for it over C.
 
 - [Quick reference](#quick-reference)
 - [The order things happen in](#the-order-things-happen-in)
@@ -171,7 +169,7 @@ dd36       a d3 then a d6: 11 to 36
 - Digit dice can be kept, dropped, counted and put in buckets, but they
   can't explode, implode or reroll.
 
-**`d66` is not `dd66`.** `d66` is one die numbered 1 to 66, just like `d20`
+**`d66` is not `dd66`.** `d66` is one die numbered 1 to 66, the same as `d20`
 or `d100`. `dd66` is two six-sided dice read as digits. Some other dice
 rollers use `d66` for the digit kind; QD4P keeps `dX` meaning "a number from
 1 to X" everywhere.
@@ -303,8 +301,9 @@ A die that is rerolled is set aside and a new die takes its place.
 - The old die is shown struck out, `~1~`, followed by its replacement.
 - `ir` and `irg` stop after 100 rerolls of one die (flagged), and are
   refused if they would match every face.
-- "Reroll" in this section means the modifier. Rerolling chosen dice after
-  the fact (bennies, pushes, luck) is a separate feature arriving in D6.
+- "Reroll" in this section means the modifier, which happens as the dice
+  are rolled. Rerolling after the fact (bennies, pushes, luck) is
+  [Rerolls after the roll](#rerolls-after-the-roll).
 
 ## Keep and drop
 
@@ -330,7 +329,7 @@ The number is optional and means 1.
 - Keeping more dice than there are keeps them all; `k0` keeps none and
   earns a warning.
 - **Ties**: when dice tie, the lowest is the earliest rolled of them and the
-  highest is the latest rolled. The total is the same either way; this just
+  highest is the latest rolled. The total is the same either way; this only
   decides which die is shown as dropped, so it never changes from run to
   run.
 - Dropped dice are shown in brackets: `(1)`.
@@ -377,7 +376,7 @@ none of them are counted as "other".
 | Test | Matches |
 | --- | --- |
 | `<3` `<=3` `>4` `>=4` | less than, at most, more than, at least |
-| `=6` or just `6` | exactly 6 |
+| `=6` or `6` on its own | exactly 6 |
 | `!=1` | anything but 1 |
 | `3-5` | 3, 4 or 5 |
 | `=max` `=min` | the die's highest or lowest face |
@@ -391,8 +390,8 @@ none of them are counted as "other".
 ```
 
 - Up to 8 buckets. A die can be in more than one bucket.
-- Buckets are for your own categories. Built-in game outcomes (raises,
-  criticals) come with the game systems in D5.
+- Buckets are for your own categories. Games' own outcomes (raises,
+  criticals) come with the [game systems](#game-systems).
 
 ## Group names
 
@@ -441,7 +440,7 @@ To keep or drop whole rolls, put the repeat in brackets: see
 
 **Mass rolls**: more than 20 repeats (up to 1,000) are counted rather than
 listed: the average, lowest and highest value, how many passed, and how
-many of each outcome. The same rules as one roll, just many of them: a
+many of each outcome. The same rules as one roll, many times over: a
 horde's attacks, a volley of arrows.
 
 ```
@@ -516,7 +515,7 @@ value too.
 | Better or worse of two | `reroll best`, `reroll worst` | `qd_reroll_keep` | luck, Lucky, fortune |
 
 - **Choosing dice**: the console's `last` command shows the last roll with
-  every die numbered (`#1 6* #2 3 #3 1 ...`); `reroll 2 3` rerolls #2 and
+  every die numbered (`#1:6* #2:3 #3:1 ...`); `reroll 2 3` rerolls #2 and
   #3. In C, pass indexes into `res.dice`.
 - **A test** is written like a [bucket](#buckets): `reroll !=6`,
   `reroll <3`, `reroll =1`. Every die still in play that passes is
@@ -553,6 +552,18 @@ is never ambiguous.
 **After dice, `d` means drop.** `4d6d1` is "4d6, drop the lowest 1", and so
 is `4d6 d1`. To add a one-sided die, use a sign: `4d6 + 1d1`. To add more
 digit dice, likewise: `4d6 + dd66`.
+
+**Words may touch.** A repeat's `x`, a game word and `v` / `vs` don't need
+spaces around them: `100xatkv20` is `100 x atk vs 20`, `chkvs15` is
+`chk vs 15`, and `coc50vhard` is `coc 50 vs hard`. A word is only read as
+a game word when it ends there: `atkins` isn't `atk`.
+
+```
+100xatkv20          100 x atk vs 20
+6x4d6k3             6 x 4d6 k3
+savev12             save vs 12
+coc50vhard          coc 50 vs hard
+```
 
 ## How results are shown
 
@@ -613,7 +624,7 @@ A system shortcut goes at the start of a roll and stands for that game's
 dice. Most can be followed by ordinary maths (a skill, a bonus, more dice)
 and a target, and every one comes with the game's own reading of the
 result: raises, success levels, messy criticals and so on. In C,
-`qd_sys_outcome()` gives that reading; see `qd4p/qd_sys.h`.
+[`qd_sys_outcome()`](reference/systems.md#qd_sys_outcome) gives that reading.
 
 | System | Shortcut | Maths after it? | `vs` means |
 | --- | --- | --- | --- |
@@ -632,7 +643,7 @@ The word stands for the d20, with advantage or disadvantage if you add
 (for a d30 check, write plain `1d30 + 3 vs 12`).
 
 `chk` (ability checks) and `save` (saving throws) behave the same: the
-total against the DC. The two names just say which kind of roll it was,
+total against the DC. The two names only say which kind of roll it was,
 for the log and the screen. `atk` differs in one way: a natural 20 always
 hits and a natural 1 always misses.
 
@@ -787,8 +798,9 @@ qd_expand("{1d4+1} wolves and {2d6*10} gp", line, sizeof(line), NULL);   /* "3 w
   `qd_pick_range("2d6", ranges, n, &v)` rolls it and finds which of the
   app's ranges the value lands in.
 
-A complete random-table system built on these, with a file format and a PC
-tool, is in `examples/tables/`.
+The C side: [Dice in text and ranges](reference/text.md). A complete
+random-table system built on these, with a file format and a PC tool, is
+in `examples/tables/` ([reference](reference/tables.md)).
 
 ## Recipes for popular games
 
@@ -837,7 +849,7 @@ wrong. The console underlines it:
 | nothing to roll | an empty line, or only a label |
 | the roll stops too soon … | a sign with nothing after it: `4d6 +` |
 | expected a number, dice or '(' … | something odd where a value should be |
-| expected + - * / [ ! or the end … | something odd after a complete roll |
+| expected + - * / vs [ ! or the end … | something odd after a complete roll |
 | no space inside dice | `4 d6` |
 | what kind of die? | `4d` or `4dx` |
 | a die needs at least 1 side / at most 32767 sides | `4d0`, `4d40000` |
@@ -865,7 +877,7 @@ wrong. The console underlines it:
 | brackets nested too deep | more than 8 brackets inside each other |
 | too long: at most 24 numbers, dice and signs | a very long sum |
 | explodes or rerolls on every face, so it would never stop | `1d6 ie1` |
-| at most 4 rolls on one line | a fifth `;` |
+| at most 4 rolls on one line | `1d6;1d6;1d6;1d6;1d6` |
 | vs needs a number | `1d20 vs` |
 | for coc, vs is regular, hard or extreme | `coc 60 vs 30` |
 | no maths after coc / vtm | `coc 60 + 5` |
@@ -966,32 +978,15 @@ case-insensitive. Spaces may appear between any two symbols above.
 ## Using the parser from C
 
 ```c
-#include "qd4p.h"
-
-qd_parsed_t roll;
+static qd_parsed_t p;
+static qd_result_t res;
 qd_parse_error_t err;
-qd_result_t res;
-
-if (!qd_parse("(Bite) 1d20 + 14", &roll, &err)) {
-    printf("column %d: %s\n", err.pos + 1, err.message);   /* underline err.len chars */
-    return;
-}
-for (int i = 0; i < roll.repeat; i++) {
-    qd_roll_run(&roll.roll, &res);              /* parse once, roll many times */
-    printf("%s: %ld\n", roll.label, (long)res.total);
+if (qd_parse("(Bite) 1d20 + 14", &p, &err)) {
+    qd_roll_run(&p.roll, &res);                 /* parse once, roll as often as you like */
+    printf("%s: %ld\n", p.label, (long)res.total);
+} else {
+    printf("column %d: %s\n", err.pos + 1, err.message);
 }
 ```
 
-- `qd_parse_line(text, rolls, max, &err)` reads several rolls separated by
-  `;` and returns how many.
-- `qd_format(&roll, buf, size)` writes a parsed roll back as tidy notation;
-  parsing that gives the same roll. `qd_format_pool` writes one set of
-  dice.
-- `qd_parse_set_lookup(fn, ctx)` supplies custom dice for `d{name}`.
-- `qd_roll_warnings(&roll.roll)` and `qd_warn_text()` give the warnings.
-- `qd_sys_outcome(&roll.roll, &res, &outcome)` gives the game reading:
-  `outcome.text` ("Success, 2 raises"), `outcome.detail` ("1 ace, vs 4"),
-  `outcome.pass`, `outcome.level`, `outcome.margin`, `outcome.degrees`.
-- Everything a parsed roll contains can also be built directly in C with
-  the `qd_roll_*` and `qd_pool_*` functions in `qd_roll.h`; the parser is
-  optional.
+The whole C side is in the reference: [the parser](reference/parse.md) (parsing, errors, several rolls, sets, mass rolls, writing rolls back), [game systems](reference/systems.md) (`qd_sys_outcome`: "Success, 2 raises"), and [the roll engine](reference/rolls.md), which builds every roll on this page in code, without the parser.

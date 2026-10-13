@@ -58,6 +58,19 @@ else
     echo "FAIL  fair mode on the PC console:"; sed 's/^/      /' $B/fair_pc.log; fail=$((fail+1))
 fi
 
+# The manual: every example compiles, runs and prints what the page shows,
+# and every roll in the notation guide does what the guide says.
+if python3 doc_examples.py > $B/doc_examples.log 2>&1; then
+    echo "PASS  $(tail -1 $B/doc_examples.log)"; pass=$((pass+1))
+else
+    echo "FAIL  manual examples:"; sed 's/^/      /' $B/doc_examples.log; fail=$((fail+1))
+fi
+if python3 notation_examples.py > $B/notation_examples.log 2>&1; then
+    echo "PASS  notation guide: $(tail -1 $B/notation_examples.log)"; pass=$((pass+1))
+else
+    echo "FAIL  notation guide:"; sed 's/^/      /' $B/notation_examples.log; fail=$((fail+1))
+fi
+
 if python3 check_disclosure.py > $B/disclosure.log 2>&1; then
     echo "PASS  $(head -1 $B/disclosure.log)"; pass=$((pass+1))
 else

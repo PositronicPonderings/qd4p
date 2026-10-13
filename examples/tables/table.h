@@ -18,7 +18,7 @@
  * Tables are written as text (README.md here) and turned into an asset by
  * tables.py on a PC; the asset is read where it lies, in flash. In an
  * entry: {1d4+1} rolls dice (qd_expand), [Weather] rolls on another table
- * (a qd_expand hook), and an entry that is just "Roll twice" / "Roll N
+ * (a qd_expand hook), and an entry that is only "Roll twice" / "Roll N
  * times" rolls again on the same table.
  */
 #ifndef TABLE_H

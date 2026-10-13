@@ -131,7 +131,7 @@ Most actions stand alone; a few depend on what came before them.
 | A table roll | `#7 table forest` | nothing (the same tables) |
 | `pct` | `#8 pct b1` | nothing |
 | A custom die | `#20 3d{custom}` | `custom 0 ...` with the same faces |
-| A reroll | `#15 reroll 2` | the roll it rerolled, typed with its number just before |
+| A reroll | `#15 reroll 2` | the roll it rerolled, typed with its number first |
 | A deal | `#22 deal 5` | `deck ...` and every deal since the last shuffle, in order |
 
 The roll must be typed as it was made: `3d6` isn't `3d{custom}`, and
@@ -163,7 +163,7 @@ qd_fair_end(key);                                  /* reveal */
 qd_fair_words(key, QD_FAIR_KEY_BYTES, words, sizeof(words));
 ```
 
-Call `qd_fair_begin()` once per action the players see, just before it
+Call `qd_fair_begin()` once per action the players see, right before it
 rolls, and show its number with the result. Anything rolled without a
 `qd_fair_begin()` carries on from the last action's numbers: still fixed by
 the key, but only checkable by replaying that whole action.

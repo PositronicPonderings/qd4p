@@ -3,7 +3,7 @@
 /* SPDX-AI-Model: claude-opus-5-5 */
 /* SPDX-AI-Provider: Anthropic */
 /* The few Pico SDK calls console.c uses, done with standard C on a PC.
- * Not the SDK: just enough for examples/pc/build.sh. */
+ * Not the SDK: only what examples/pc/build.sh needs. */
 #ifndef PC_PICO_STDLIB_H
 #define PC_PICO_STDLIB_H
 

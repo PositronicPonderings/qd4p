@@ -113,7 +113,7 @@ static void cmd_limits(char *args)
 
 /* --- D9: fair mode, the part every rolling command uses ---------------------
  *
- * Each command that rolls calls fair_mark() just before it rolls. In a fair
+ * Each command that rolls calls fair_mark() right before it rolls. In a fair
  * session that takes the next action number and prints it ("fair #17").
  * When checking a revealed key, a line may start with its number, "#17
  * 4d6k3", and fair_mark() uses that number instead.
@@ -280,7 +280,7 @@ static void cmd_pct(char *args)
 /* --- D3 and D4: the roll engine, through the parser ------------------------
  *
  * Type any roll on its own line: 4d6k3, (Bite) 1d20+5 ! note, 6 x 4d6k3,
- * 2d6; 3d8. 'notation' gives a summary; docs/notation.md has everything.
+ * 2d6; 3d8. 'notation' gives a summary; docs/manual/05-notation.md has everything.
  */
 static qd_die_t con_custom;          /* the last die made with 'custom', as d{custom} */
 static bool con_custom_ready;
@@ -427,7 +427,7 @@ static void print_each(int index, const qd_result_t *res, void *ctx)
 static void cmd_roll(char *args)
 {
     if (!*args) {
-        printf("usage: roll 4d6k3   (or just type the roll; 'notation' for help)\n");
+        printf("usage: roll 4d6k3   (or type the roll on its own; 'notation' for help)\n");
         return;
     }
     static qd_parsed_t rolls[4];
@@ -819,7 +819,7 @@ static void cmd_custom(char *args)
         printf("usage: custom <rolls> <face> ...   face = value[*weight][/label]\n"
                "   e.g. custom 20 1 2 3 4 5 6*3          (a six three times as likely)\n"
                "        custom 100000 1 2 3 4 5 6*3      (big counts: a fairness table)\n"
-               "        custom 0 1 2 3 4 5 6*3           (just keep it, as d{custom})\n");
+               "        custom 0 1 2 3 4 5 6*3           (keep it as d{custom}, no rolls)\n");
         return;
     }
     con_custom = die;                       /* now usable as d{custom} in rolls */
@@ -1044,7 +1044,7 @@ static const command_t commands[] = {
     { "trng",    "trng [n]: stir in n hardware TRNG readings",  cmd_trng    },
     { "adc",     "adc <gpio> [n]: stir in ADC noise",           cmd_adc     },
     { "tap",     "tap [seconds]: stir in your key timings",     cmd_tap     },
-    { "roll",    "roll 4d6k3 (or just type 4d6k3)",             cmd_roll    },
+    { "roll",    "roll 4d6k3 (or type 4d6k3 on its own)",             cmd_roll    },
     { "parse",   "parse <roll>: how it is read, without rolling", cmd_parse  },
     { "last",    "the last roll, dice numbered for reroll",     cmd_last    },
     { "odds",    "odds <roll>: chance of each result and outcome", cmd_odds  },

@@ -112,7 +112,7 @@ an implosion, `8*` a success, `10**` a double success, `1x` a failure.
 Since D4 the console reads rolls with the real parser: spaces are optional,
 maths follows the usual order, and mistakes are underlined. Each roll is
 first echoed back in tidy form (what `qd_format` writes), then rolled.
-`notation` lists everything briefly; `docs/notation.md` is the full manual.
+`notation` lists everything briefly; `docs/manual/05-notation.md` is the full guide.
 
 1. **Same rolls as before.** `seed 42`, then `4d6k3` gives
    `4d6 k3: 3 6 (1) 4  = 13`. `seed 42`, then `10d6e6k8+4` gives total 42,
@@ -135,7 +135,7 @@ first echoed back in tidy form (what `qd_format` writes), then rolled.
 ## D5 Game systems
 
 After the dice, a line starting `=>` gives the game's reading of the roll.
-`notation` lists the shortcuts; `docs/notation.md` ("Game systems") has
+`notation` lists the shortcuts; `docs/manual/05-notation.md` ("Game systems") has
 the rules. Use `live` (or any seed) and try each a few times:
 
 1. **Targets.** `1d20+5 vs 15` (or `v 15`) says Pass or Fail and by how much.
@@ -246,7 +246,7 @@ for six built-in sample tables (`examples/tables/sample_tables.txt`).
 
 ## D9 Fair mode
 
-Full guide: [fair-mode.md](fair-mode.md). Steps 1-5 on the Pico, step 6 on
+Full guide: [the fair-mode guide](manual/07-fair-mode.md). Steps 1-5 on the Pico, step 6 on
 a PC.
 
 1. **Start.** `fair`: six words of fingerprint. Write them down. `fair`

@@ -146,7 +146,7 @@ static bool coc_word_at(const ps_t *ps, int j)
     return false;
 }
 
-/* "vs" (or just "v") ends the dice part: it isn't a modifier. It may run
+/* "vs" (or "v" alone) ends the dice part: it isn't a modifier. It may run
  * straight into a CoC difficulty ("vhard"). Returns its length, or 0. */
 static int vs_len(const ps_t *ps)
 {
@@ -679,6 +679,8 @@ static bool try_system(ps_t *ps, bool *found)
     if (word_here(ps, "vtm"))   { ps->i += 3; return sys_vtm(ps, start); }
     if (word_here(ps, "dcc"))   { ps->i += 3; return sys_dcc(ps, start); }
     if (looking_at(ps, "sw") && is_digit(at(ps, ps->i + 2))) { ps->i += 2; return sys_sw(ps, start); }
+    if (word_here(ps, "sw"))
+        return fail(ps, start, 2, "sw needs the trait die: sw4, sw6, sw8, sw10 or sw12");
     *found = false;
     return true;
 }

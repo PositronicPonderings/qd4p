@@ -23,7 +23,7 @@
  *     qd_roll_add(&roll, 1);
  *     qd_roll_vs(&roll, 4);
  *
- * SYSTEMS (notation in docs/notation.md, "Game systems")
+ * SYSTEMS (notation: docs/manual/05-notation.md, "Game systems")
  *
  *   any roll  ... vs N        pass if the total (or the successes) is N or more
  *   D&D 5e    atk/chk/save    a d20, adv/dis, nat 20/1 (attacks only: auto hit/miss)

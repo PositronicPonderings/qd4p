@@ -28,7 +28,7 @@ static uint32_t rd32(const uint8_t *p)
     return (uint32_t)p[0] | (uint32_t)p[1] << 8 | (uint32_t)p[2] << 16 | (uint32_t)p[3] << 24;
 }
 
-/* Just past the 0 that ends the string at `at`, or 0 if it runs off the end. */
+/* The byte after the 0 that ends the string at `at`, or 0 if it runs off the end. */
 static uint32_t skip_str(const tbl_set_t *t, uint32_t at)
 {
     while (at < t->size && t->data[at]) at++;

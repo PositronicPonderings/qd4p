@@ -16,7 +16,7 @@
  *         printf("column %d: %s\n", err.pos + 1, err.message);
  *
  * Parse once, run as often as you like. The full notation, with examples
- * of everything, is in docs/notation.md. In short:
+ * of everything, is in docs/manual/05-notation.md. In short:
  *
  *     4d6  d20  d%  4dF  dd66  2d{Loaded}        dice
  *     + - * / ( )                                maths, usual precedence
@@ -114,14 +114,14 @@ typedef struct {
 
 /** Roll a parsed roll `repeat` times (up to QD_MAX_MASS) and count: the
  *  sum, lowest and highest value, passes and each outcome level. The same
- *  rules as one roll, just many of them: a horde's attacks, a volley. */
+ *  rules as one roll, many times over: a horde's attacks, a volley. */
 qd_err_t qd_mass_run(const qd_parsed_t *p, qd_mass_result_t *out);
 
 /** Write a parsed roll back as tidy notation ("(Bite) 1d20 + 5 ! note").
  *  Parsing what it writes gives the same roll. Returns the length. */
 int qd_format(const qd_parsed_t *p, char *buf, int size);
 
-/** Just one pool, as notation ("4d6k3", "base:4d6t6"). */
+/** One pool on its own, as notation ("4d6k3", "base:4d6t6"). */
 int qd_format_pool(const qd_parsed_t *p, int pool, char *buf, int size);
 
 #ifdef __cplusplus
