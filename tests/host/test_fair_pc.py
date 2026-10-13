@@ -93,7 +93,19 @@ check(got[8][1] != want[8][0], "#8 as plain 3d6 isn't the same roll as 3d{custom
 check("checking a fair session" in out and "done checking" in out, "the checking messages")
 
 bad = run(["fair check wood cherry", "fair check wood cherry zzz", "fair", "fair check ab"])
-check("(got 2)" in bad and "word 3 isn't" in bad and "word 1 isn't" in bad, "bad key words are explained")
+check("2 words so far: type the other 14" in bad and "word 3 isn't" in bad and "word 1 isn't" in bad,
+      "bad key words are explained")
+
+# the key as the device shows it: two lines of eight
+halves = key_words.split()
+two = run(["fair check " + " ".join(halves[:8]), " ".join(halves[8:]), "#1 4d6k3"])
+check("Its fingerprint:\n  " + start_print in two and strip_time(actions(two)[1][0]) == strip_time(want[1][0]),
+      "a key typed over two lines, as shown, checks the same")
+other = run(["fair check " + " ".join(halves[:8]), "table forest"])
+check("not the other 8 of the key" in other and "Forest encounters" in other,
+      "anything else on the next line drops the half key and runs as usual")
+one = run(["fair check " + key_words, "#1"])
+check("#1 what?" in one, "a bare #1 asks for the action")
 twice = run(["fair", "fair check " + key_words, "fair end"])
 check("a live session is running" in twice, "checking can't replace a live session (its key would be lost)")
 

@@ -134,12 +134,24 @@ static const char *const keywords[] = {
     "dd", "d", "tl", "t", "f", "b", "e", "sets", "p",
 };
 
-/* "vs" (or just "v") ends the dice part: it isn't a modifier. Returns
- * the length of the word, or 0. */
+/* Does a Call of Cthulhu difficulty word start at j ("vhard" -> "hard")? */
+static bool coc_word_at(const ps_t *ps, int j)
+{
+    static const char *const w[] = { "regular", "hard", "extreme" };
+    for (int k = 0; k < 3; k++) {
+        int n = (int)strlen(w[k]), q = 0;
+        while (q < n && lower(at(ps, j + q)) == w[k][q]) q++;
+        if (q == n && !is_alpha(at(ps, j + n))) return true;
+    }
+    return false;
+}
+
+/* "vs" (or just "v") ends the dice part: it isn't a modifier. It may run
+ * straight into a CoC difficulty ("vhard"). Returns its length, or 0. */
 static int vs_len(const ps_t *ps)
 {
-    if (looking_at(ps, "vs") && !is_alpha(at(ps, ps->i + 2))) return 2;
-    if (looking_at(ps, "v") && !is_alpha(at(ps, ps->i + 1))) return 1;
+    if (looking_at(ps, "vs") && (!is_alpha(at(ps, ps->i + 2)) || coc_word_at(ps, ps->i + 2))) return 2;
+    if (looking_at(ps, "v") && (!is_alpha(at(ps, ps->i + 1)) || coc_word_at(ps, ps->i + 1))) return 1;
     return 0;
 }
 
@@ -466,12 +478,22 @@ static bool sum(ps_t *ps)
  * Game-system shortcuts: atk, chk, save, sw8, coc 65, fate, vtm 7 h2, dcc d20
  * ======================================================================== */
 
-/* Is the word `w` here, whole (not followed by a letter or ':')? */
+/* Is the word `w` here, whole? A word ends at anything that isn't a
+ * letter, ':' or '_' ("atk" in "atk+5", but not in "atkins"), or where
+ * "vs" or "v" starts, since people type "atkv20" and mean "atk v 20". */
 static bool word_here(const ps_t *ps, const char *w)
 {
     int n = (int)strlen(w);
-    char after = at(ps, ps->i + n);
-    return looking_at(ps, w) && !is_alpha(after) && after != ':' && after != '_';
+    int e = ps->i + n;
+    char after = at(ps, e);
+    if (!looking_at(ps, w))
+        return false;
+    if (!is_alpha(after))
+        return after != ':' && after != '_';
+    if (lower(after) != 'v')
+        return false;
+    int v = lower(at(ps, e + 1)) == 's' ? e + 2 : e + 1;  /* "vs" or "v" ... */
+    return !is_alpha(at(ps, v));                          /* ... then not a letter */
 }
 
 /* An optional number straight after a letter: "b2", "h3". */
@@ -794,9 +816,8 @@ static bool try_repeat(ps_t *ps, bool *done)
     while (at(ps, k) == ' ' || at(ps, k) == '\t') k++;
     if (lower(at(ps, k)) != 'x')
         return true;
-    char after = at(ps, k + 1);
-    if (is_alpha(after) && lower(after) != 'd')
-        return true;
+    /* "6 x 4d6", "6x4d6", "100xatk": a number then an x is always a repeat,
+     * whatever follows it (nothing else in notation starts with x) */
     int start = ps->i;
     long n;
     if (!read_number(ps, &n))
@@ -959,7 +980,7 @@ static bool set_here(ps_t *ps, int *close)
         return false;
     while (is_digit(at(ps, j))) j++;
     while (at(ps, j) == ' ') j++;
-    if (lower(at(ps, j)) != 'x' || (is_alpha(at(ps, j + 1)) && lower(at(ps, j + 1)) != 'd'))
+    if (lower(at(ps, j)) != 'x')                        /* the same rule as try_repeat */
         return false;
     int depth = 0;
     for (int k = ps->i; k < ps->end; k++) {

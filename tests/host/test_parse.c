@@ -208,6 +208,10 @@ static void test_errors(void)
         { "1001 x 1d6",     1,  "repeat 1 to 1000" },
         { "400 atk vs 12",  5,  "to roll it 400 times, write 400 x" },
         { "400(atk v 12)",  4,  "write 400 x" },
+        { "100atkv20",      4,  "to roll it 100 times, write 100 x" },
+        { "2x3",            1,  "no dice" },
+        { "2d6vhard",       5,  "vs needs a number" },
+        { "atkins",         1,  "" },
         { "(This label is far too long) 1d6", 1, "at most 23" },
         { "6d10 ds10",      6,  "ds goes after t" },
         { "chk d30 vs 5",   5,  "else write 1d30 vs 5" },
@@ -275,6 +279,18 @@ static void test_format(void)
         { "dcc d16 -d -d",              "dcc 1d16 -2d" },
         { "6d10 t8 vs 3",               "6d10 t8 vs 3" },
         { "1d20+5 vs -2",               "1d20 + 5 vs -2" },
+        /* a repeat's x and a system word may touch what follows */
+        { "100xatkv20",                 "100 x atk vs 20" },
+        { "100 xatk v20",               "100 x atk vs 20" },
+        { "100 x atkv20",               "100 x atk vs 20" },
+        { "6x d20",                     "6 x 1d20" },
+        { "(6xatkv12)k2",               "(6 x atk vs 12) k2" },
+        { "atkv20",                     "atk vs 20" },
+        { "chkvs15",                    "chk vs 15" },
+        { "savev12",                    "save vs 12" },
+        { "atk advv10",                 "atk adv vs 10" },
+        { "coc50vhard",                 "coc 50 vs hard" },
+        { "coc 50 vsextreme",           "coc 50 vs extreme" },
     };
     for (size_t c = 0; c < sizeof(cases) / sizeof(cases[0]); c++) {
         char out[128], twice[128];

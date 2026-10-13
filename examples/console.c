@@ -41,6 +41,49 @@
 #endif
 
 /* ------------------------------------------------------------------------ */
+/* Output that fits 80 columns                                              */
+/* ------------------------------------------------------------------------ */
+/* Long lines (a hundred dice, a long label) are built up with w_add(), then
+ * w_line() prints them broken at spaces so no line passes column 80. Lines
+ * after the first start with `indent` spaces, so they read as one item. */
+#include <stdarg.h>
+#define WRAP_AT 80
+static char wbuf[4096];
+static int  wlen;
+
+static void w_add(const char *fmt, ...)
+{
+    va_list ap;
+    va_start(ap, fmt);
+    int n = vsnprintf(wbuf + wlen, sizeof(wbuf) - (size_t)wlen, fmt, ap);
+    va_end(ap);
+    if (n > 0) wlen += n;
+    if (wlen > (int)sizeof(wbuf) - 1) wlen = (int)sizeof(wbuf) - 1;
+}
+
+static void w_line(int indent)
+{
+    int col = 0, i = 0;
+    while (i < wlen) {
+        /* the next piece: any spaces, then a run of non-spaces */
+        int a = i;
+        while (i < wlen && wbuf[i] == ' ') i++;
+        int b = i;
+        while (i < wlen && wbuf[i] != ' ') i++;
+        int spaces = b - a, word = i - b;
+        if (col > indent && col + spaces + word > WRAP_AT) {
+            printf("\n%*s", indent, "");
+            col = indent;
+            spaces = 0;                     /* a new line starts with the word */
+        }
+        printf("%.*s%.*s", spaces, wbuf + a, word, wbuf + b);
+        col += spaces + word;
+    }
+    printf("\n");
+    wlen = 0;
+}
+
+/* ------------------------------------------------------------------------ */
 /* Commands                                                                 */
 /* ------------------------------------------------------------------------ */
 typedef struct {
@@ -103,10 +146,10 @@ static void cmd_rng(char *args)
 {
     (void)args;
     uint32_t stirred = qd_rng_stir_count();
-    printf("mode: %s, entropy stirred in %lu time%s since the last seed\n",
-           qd_fair_is_on() ? "FAIR (held: rolls come from the session key)" :
-           qd_rng_is_replay() ? "REPLAY (same numbers every time)" : "live",
-           (unsigned long)stirred, stirred == 1 ? "" : "s");
+    printf("mode: %s\n", qd_fair_is_on() ? "FAIR (rolls come from the session key)" :
+           qd_rng_is_replay() ? "REPLAY (same numbers every time)" : "live");
+    printf("entropy stirred in %lu time%s since the last seed\n", (unsigned long)stirred,
+           stirred == 1 ? "" : "s");
 }
 
 static void cmd_seed(char *args)
@@ -250,6 +293,8 @@ static const qd_die_t *con_lookup(const char *name, void *ctx)
 
 /* One die as text: 5  (5) dropped  ~2~ rerolled  !6 from an explosion
  * -7 imploded (subtracted)  8* success  10** double  1x failure  b botch */
+static bool die_glue;                  /* print_die without its space ("#3:5") */
+
 static void print_die(const qd_pool_t *p, const qd_die_result_t *d)
 {
     char v[16];
@@ -258,7 +303,7 @@ static void print_die(const qd_pool_t *p, const qd_die_result_t *d)
     else if (d->flags & QD_DIE_CHANGED) snprintf(v, sizeof(v), "%d->%d", d->was, d->value);
     else snprintf(v, sizeof(v), "%d", d->value);
     uint16_t f = d->flags;
-    printf(" %s%s%s%s%s%s%s%s%s", (f & QD_DIE_EXPLODED) ? "!" : "", (f & QD_DIE_IMPLODED) ? "-" : "",
+    w_add("%s%s%s%s%s%s%s%s%s%s", die_glue ? "" : " ", (f & QD_DIE_EXPLODED) ? "!" : "", (f & QD_DIE_IMPLODED) ? "-" : "",
            (f & QD_DIE_REROLLED) ? "~" : (f & (QD_DIE_DROPPED | QD_DIE_SET_ASIDE)) ? "(" : "", v,
            (f & QD_DIE_REROLLED) ? "~" : (f & (QD_DIE_DROPPED | QD_DIE_SET_ASIDE)) ? ")" : "",
            (f & QD_DIE_TWICE) ? "**" : (f & QD_DIE_SUCCESS) ? "*" : "",
@@ -283,28 +328,30 @@ static void print_result(const qd_parsed_t *ps, const qd_result_t *res)
         const qd_pool_result_t *pr = &res->pools[k];
         char name[64];
         qd_format_pool(ps, k, name, sizeof(name));
-        printf("  %s:", name);
+        w_add("  %s:", name);
         const qd_die_result_t *dice = &res->dice[pr->first];
         for (int i = 0; i < pr->listed; i++)
             if (dice[i].parent == QD_NO_PARENT) print_tree(p, dice, pr->listed, i, 0);
-        if (pr->listed < pr->rolled) printf(" ... %u more", pr->rolled - pr->listed);
-        printf("  = %ld", (long)pr->total);
-        if (pr->rolled > 20 && pr->kept)
-            printf("  (%u kept, low %d, high %d, average %.2f)", pr->kept, pr->min, pr->max,
-                   (double)pr->total / pr->kept);
-        printf("\n");
+        if (pr->listed < pr->rolled) w_add(" ... %u more", pr->rolled - pr->listed);
+        w_add("  = %ld", (long)pr->total);
+        w_line(4);
+        if (pr->rolled > 20 && pr->kept) {
+            w_add("    (%u kept, low %d, high %d, average %.2f)", pr->kept, pr->min, pr->max,
+                  (double)pr->total / pr->kept);
+            w_line(6);
+        }
         if (p->sets) {
-            printf("    sets:");
-            if (!pr->set_count) printf(" none");
+            w_add("    sets:");
+            if (!pr->set_count) w_add(" none");
             for (int k2 = 0; k2 < pr->set_count; k2++)
-                printf(" %ux%d", pr->sets[k2].size, pr->sets[k2].value);
-            printf("\n");
+                w_add(" %ux%d", pr->sets[k2].size, pr->sets[k2].value);
+            w_line(6);
         }
         if (pr->listed < pr->rolled && pr->face_counts) {
-            printf("    faces:");
+            w_add("    faces:");
             for (int f = 0; f < (p->die ? p->die->sides : p->sides); f++)
-                if (pr->face_count[f]) printf(" %d:%u", f + 1, pr->face_count[f]);
-            printf("\n");
+                if (pr->face_count[f]) w_add(" %d:%u", f + 1, pr->face_count[f]);
+            w_line(6);
         }
     }
     printf("  total %ld", (long)res->total);
@@ -313,12 +360,13 @@ static void print_result(const qd_parsed_t *ps, const qd_result_t *res)
     if (res->botches) printf(", botches %d", res->botches);
     printf("\n");
     if (res->bucket_count) {
-        printf("  buckets:");
+        w_add("  buckets:");
         for (int b = 0; b < res->bucket_count; b++) {
             char t[16];
-            printf(" %s:%u", qd_test_text(&r->buckets[b].test, t, sizeof(t)), res->buckets[b]);
+            w_add(" %s:%u", qd_test_text(&r->buckets[b].test, t, sizeof(t)), res->buckets[b]);
         }
-        printf(" other:%u\n", res->buckets[res->bucket_count]);
+        w_add(" other:%u", res->buckets[res->bucket_count]);
+        w_line(4);
     }
     if (res->flags & QD_RES_SUMMARY)  printf("  (summary: over %d dice, only the first %d listed)\n",
                                              QD_MAX_KEPT_DICE, QD_MAX_KEPT_DICE);
@@ -332,9 +380,24 @@ static void print_result(const qd_parsed_t *ps, const qd_result_t *res)
  *             ^ the roll stops too soon ... */
 static void print_error(const char *text, const qd_parse_error_t *err)
 {
-    printf("  %s\n  ", text);
-    for (int i = 0; i < err->pos; i++) putchar(' ');
-    for (int i = 0; i < err->len; i++) putchar('^');
+    /* A line too long for 80 columns is shown as a window of it, "..." at
+     * the cut ends, placed so the carets land under the problem. */
+    int len = (int)strlen(text), from = 0, to = len, room = WRAP_AT - 8;
+    if (len > room) {
+        from = err->pos - room / 3;
+        if (from < 0) from = 0;
+        to = from + room;
+        if (to > len) { to = len; from = to - room; }
+    }
+    int shift = from > 0 ? 3 : 0;                   /* the "..." in front */
+    printf("  %s%.*s%s\n  ", from > 0 ? "..." : "", to - from, text + from, to < len ? "..." : "");
+    for (int i = from - shift; i < err->pos; i++) putchar(' ');
+    int marks = err->len;
+    if (err->pos + marks > to) marks = to - err->pos;
+    if (marks < 1) marks = 1;
+    for (int i = 0; i < marks; i++) putchar('^');
+    if (err->pos - from + shift + marks + 3 + (int)strlen(err->message) > WRAP_AT - 2)
+        printf("\n  ");                            /* the message on its own line */
     printf(" %s\n", err->message);
 }
 
@@ -376,7 +439,8 @@ static void cmd_roll(char *args)
         const qd_parsed_t *ps = &rolls[k];
         char tidy[160];
         qd_format(ps, tidy, sizeof(tidy));
-        printf("%s\n", tidy);
+        w_add("%s", tidy);
+        w_line(2);
         uint16_t w = qd_roll_warnings(&ps->roll);
         if (w) printf("  note: %s\n", qd_warn_text(w));
         if (ps->repeat > QD_MAX_REPEAT) {
@@ -431,12 +495,16 @@ static void cmd_last(char *args)
     if (!have_last) { printf("nothing rolled yet\n"); return; }
     char tidy[160];
     qd_format(&last_roll, tidy, sizeof(tidy));
-    printf("%s\n ", tidy);
+    w_add("%s", tidy);
+    w_line(2);
+    w_add(" ");
     for (int i = 0; i < last_res.dice_count; i++) {
-        printf(" #%d", i + 1);
+        w_add(" #%d:", i + 1);                /* "#3:5": dice numbers for 'reroll 3' */
+        die_glue = true;
         print_die(&last_roll.roll.pools[last_res.dice[i].pool], &last_res.dice[i]);
+        die_glue = false;
     }
-    printf("\n");
+    w_line(2);
     print_result(&last_roll, &last_res);
     print_outcome(&last_roll, &last_res);
 }
@@ -503,7 +571,8 @@ static void cmd_parse(char *args)
         const qd_parsed_t *ps = &rolls[k];
         char tidy[160];
         qd_format(ps, tidy, sizeof(tidy));
-        printf("%s\n", tidy);
+        w_add("%s", tidy);
+        w_line(2);
         if (ps->repeat > 1) printf("  repeat %u times\n", ps->repeat);
         if (ps->label[0]) printf("  label   \"%s\"\n", ps->label);
         if (ps->comment[0]) printf("  comment \"%s\"\n", ps->comment);
@@ -787,13 +856,14 @@ static bool deck_ready;
 
 static void deck_status(void)
 {
-    printf("%d cards, %d in the deck, %d out; reshuffle:%s%s%s%s%s\n", deck.count,
+    printf("%d cards, %d in the deck, %d out; reshuffle:%s%s%s%s\n", deck.count,
            qd_deck_remaining(&deck), qd_deck_out_count(&deck),
            deck.policy & QD_RESHUFFLE_EVERY_DRAW ? " every-draw" : "",
            deck.policy & QD_RESHUFFLE_WHEN_EMPTY ? " when-empty" : "",
            deck.policy & QD_RESHUFFLE_AFTER_TRIGGER ? " after-joker" : "",
-           deck.policy ? "" : " on demand only",
-           deck.triggered ? "  [joker out: next deal reshuffles]" : "");
+           deck.policy ? "" : " on demand only");
+    if (deck.triggered && (deck.policy & QD_RESHUFFLE_AFTER_TRIGGER))
+        printf("a joker is out: the next deal reshuffles first\n");
 }
 
 static void cmd_deck(char *args)
@@ -864,6 +934,9 @@ static void cmd_policy(char *args)
  * fair check <words>    check a revealed key: then "#17 4d6k3" repeats #17
  */
 static uint8_t fair_print_at_start[QD_FAIR_PRINT_BYTES];
+static uint8_t key_part[QD_FAIR_KEY_BYTES];  /* 'fair check' with the key split over lines */
+static int     key_part_n;
+static void    fair_check_key(const uint8_t key[QD_FAIR_KEY_BYTES]);
 static bool    fair_checking;          /* the key was typed in: checking, not live */
 
 /* 16 words on two lines of 8 */
@@ -923,27 +996,39 @@ static void cmd_fair(char *args)
     if (!strncmp(args, "check", 5) && (args[5] == ' ' || !args[5])) {
         uint8_t key[QD_FAIR_KEY_BYTES];
         int n = qd_fair_read_words(args + 5, key, QD_FAIR_KEY_BYTES);
-        if (n != QD_FAIR_KEY_BYTES) {
-            if (n < 0) printf("word %d isn't one of the fair-mode words\n", -n);
-            else printf("usage: fair check <the 16 key words>   (got %d)\n", n);
+        if (n < 0) { printf("word %d isn't one of the fair-mode words\n", -n); return; }
+        if (n == 0) { printf("usage: fair check <the 16 key words>\n"); return; }
+        if (n < QD_FAIR_KEY_BYTES) {
+            /* the key is shown on two lines, so it often arrives on two */
+            memcpy(key_part, key, (size_t)n);
+            key_part_n = n;
+            printf("%d words so far: type the other %d on the next line\n", n,
+                   QD_FAIR_KEY_BYTES - n);
             return;
         }
-        if (qd_fair_is_on() && !fair_checking) {
-            printf("a live session is running: 'fair end' it first\n");
-            return;
-        }
-        qd_fair_start_key(key);
-        fair_checking = true;
-        qd_fair_fingerprint(fair_print_at_start);
-        qd_fair_fingerprint_words(words, sizeof(words));
-        printf("checking with this key. Its fingerprint:\n  %s\n", words);
-        printf("If that matches the one written down at the start, the key is the\n");
-        printf("session's. Now type each action with its number, in any order:\n");
-        printf("  #3 4d6k3   #4 reroll 2   #7 table forest   (rerolls and deals need\n");
-        printf("  the actions before them typed first). 'fair end' when done.\n");
+        fair_check_key(key);
         return;
     }
     printf("usage: fair | fair end | fair check <16 words>\n");
+}
+
+/* Start checking with a whole key: the second half of 'fair check'. */
+static void fair_check_key(const uint8_t key[QD_FAIR_KEY_BYTES])
+{
+    char words[QD_FAIR_TEXT];
+    if (qd_fair_is_on() && !fair_checking) {
+        printf("a live session is running: 'fair end' it first\n");
+        return;
+    }
+    qd_fair_start_key(key);
+    fair_checking = true;
+    qd_fair_fingerprint(fair_print_at_start);
+    qd_fair_fingerprint_words(words, sizeof(words));
+    printf("checking with this key. Its fingerprint:\n  %s\n", words);
+    printf("If that matches the one written down at the start, the key is the\n");
+    printf("session's. Now type each action with its number, in any order:\n");
+    printf("  #3 4d6k3   #4 reroll 2   #7 table forest   (rerolls and deals need\n");
+    printf("  the actions before them typed first). 'fair end' when done.\n");
 }
 
 static const command_t commands[] = {
@@ -993,6 +1078,23 @@ static void run_command(char *line);
 static void run_line(char *line)
 {
     while (*line == ' ') line++;
+    if (key_part_n) {
+        /* The rest of a key that 'fair check' started on the line before?
+         * Only if this line is exactly the missing words: "table forest"
+         * is two fair-mode words too, and should still roll on a table. */
+        uint8_t more[QD_FAIR_KEY_BYTES];
+        int want = QD_FAIR_KEY_BYTES - key_part_n;
+        int n = qd_fair_read_words(line, more, QD_FAIR_KEY_BYTES);
+        int had = key_part_n;
+        key_part_n = 0;
+        if (n == want) {
+            memcpy(key_part + had, more, (size_t)n);
+            fair_check_key(key_part);
+            return;
+        }
+        if (n > 0)
+            printf("(%d words: not the other %d of the key, so the key is dropped)\n", n, want);
+    }
     if (*line == '#' && isdigit((unsigned char)line[1])) {
         /* "#17 4d6k3": checking a fair session, action 17 */
         char *end;
@@ -1005,6 +1107,11 @@ static void run_line(char *line)
         fair_at = (uint32_t)n;
         line = end;
         while (*line == ' ') line++;
+        if (!*line) {
+            printf("#%lu what? Type the action after its number: #%lu 4d6k3\n", n, n);
+            fair_at = 0;
+            return;
+        }
     }
     run_command(line);
     fair_at = 0;                            /* used, or the command didn't roll */
@@ -1035,7 +1142,11 @@ static void run_command(char *line)
                             isdigit((unsigned char)line[2]));
     for (size_t k = 0; k < sizeof(system_words) / sizeof(system_words[0]); k++) {
         size_t n = strlen(system_words[k]);
-        if (!strncasecmp(line, system_words[k], n) && !isalpha((unsigned char)line[n]))
+        /* a whole word, or one running straight into "v" / "vs" ("atkv20") */
+        char after = (char)tolower((unsigned char)line[n]);
+        if (!strncasecmp(line, system_words[k], n) &&
+            (!isalpha((unsigned char)after) ||
+             (after == 'v' && !isalpha((unsigned char)line[n + 1 + (tolower((unsigned char)line[n + 1]) == 's')]))))
             looks_like_roll = true;
     }
     if (looks_like_roll) {
@@ -1065,7 +1176,7 @@ int main(void)
         if (c == PICO_ERROR_TIMEOUT) continue;
         if (c == '\r' || c == '\n') {
             if (ECHO_LINES) printf("%.*s", (int)n, line);
-            printf("\n");
+            if (ECHO_KEYS || ECHO_LINES) printf("\n");   /* a PC terminal echoed it already */
             line[n] = '\0';
             run_line(line);
             n = 0;
