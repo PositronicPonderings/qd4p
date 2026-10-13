@@ -21,7 +21,8 @@
  *     game systems     qd_sys_*, qd_sys_outcome  (D5)
  *     rerolls, sets    qd_reroll_*, qd_set_run  (D6)
  *     stats, odds      qd_stats_*, qd_odds  (D7)
- *     random tables    qd_tables_open, qd_table_roll  (D8; tools/tables.py)
+ *     dice in text     qd_expand, qd_roll_text, qd_pick_range  (D8;
+ *                      a table system built on them: examples/tables)
  *     extras           fair mode
  *
  * Everything except the hardware entropy sources is portable C11: it runs
@@ -45,7 +46,7 @@
 #include "qd_sys.h"
 #include "qd_stats.h"
 #include "qd_odds.h"
-#include "qd_table.h"
+#include "qd_text.h"
 
 #ifdef __cplusplus
 extern "C" {

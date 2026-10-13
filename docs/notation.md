@@ -28,6 +28,7 @@ unchanged. Where the two differ, this page says so.
 - [Targets: vs](#targets-vs)
 - [Matching sets](#matching-sets)
 - [Game systems](#game-systems)
+- [Dice inside text](#dice-inside-text)
 - [Recipes for popular games](#recipes-for-popular-games)
 - [Errors](#errors)
 - [Warnings](#warnings)
@@ -761,6 +762,33 @@ dcc d20 +1d + 1d4        a step up, then an extra d4
 - A natural roll of the die's highest face is a **Critical** and always
   succeeds; a natural 1 is a **Fumble** and always fails. Otherwise the
   total against `vs`: **Success** or **Failure**.
+
+## Dice inside text
+
+Any text can carry rolls in braces, rolled each time it is shown. This is
+not part of a roll's notation; it is for apps that show text with dice in
+it: random tables, generators, card and item text.
+
+```c
+char line[80];
+qd_expand("{1d4+1} wolves and {2d6*10} gp", line, sizeof(line), NULL);   /* "3 wolves and 70 gp" */
+```
+
+- Anything in `{ }` is notation as on this page: `{2d6 * 10}`, `{4dF}`,
+  `{6d10 t8}` (successes), `{coc 50}`.
+- `\{`, `\[` and `\\` give a literal `{`, `[` or `\`. A `{` that can't be
+  read becomes `{?}`.
+- `[brackets]` are left alone, unless the app passes a hook to
+  `qd_expand_ex`: then it decides what `[Name]` becomes (a random-table app
+  rolls on the table called Name).
+- The working (each roll's notation and value) comes back in a
+  `qd_expand_info_t` if you pass one.
+- `qd_roll_text("2d6", &v)` rolls notation given as text, and
+  `qd_pick_range("2d6", ranges, n, &v)` rolls it and finds which of the
+  app's ranges the value lands in.
+
+A complete random-table system built on these, with a file format and a PC
+tool, is in `examples/tables/`.
 
 ## Recipes for popular games
 

@@ -235,11 +235,15 @@ reports matching dice.
 - **Mass rolls (D7):** `N x roll` above 20, up to 1,000, follows the same
   rules and returns counts (`qd_mass_run`): sum, lowest, highest, passes
   and each outcome level. `400 x atk + 4 vs 15` for a horde.
-- **Random tables (D8):** text written like the book (ranges; `roll` line
-  optional, else 1dN), with `{rolls}`, `[Table]` links and "Roll twice" /
-  "Roll N times" (decided with the user). `tools/tables.py` checks, builds
-  the asset (or a C header) and dumps it back to text; the device reads it
-  in place (`qd_table.h`), with the working kept. See tables.md.
+- **Random tables (D8):** decided with the user: the library keeps only
+  the shared building blocks (`qd_text.h`: `qd_expand` for `{dice}` in
+  text with a hook for an app's `[links]`, `qd_roll_text`,
+  `qd_range_find` / `qd_pick_range`), because a table format, its PC tool
+  and its display are app choices (columns, weights, no-repeat draws).
+  A complete table system built on them - text format like the book,
+  `[Table]` links, "Roll twice", the working, `tables.py` and an in-flash
+  asset - is example code in `examples/tables/`, ready for the Dice Roller
+  app to take.
 - **Odds (D7):** `qd_odds(&roll, &odds)`: exact by convolution for sums
   and success counts of plain dice; exact by trying every roll (scripted
   generator draws, each weighted) up to 50,000 rolls; otherwise 10,000
@@ -277,7 +281,8 @@ reports matching dice.
 7. **D6 Rerolls and roll sets.** Done: `qd_reroll_*` in `qd_roll.h`,
    `qd_set_run` and `(N x roll) kN` in `qd_parse.h`.
 8. **D7 Stats for nerds and odds.** Done: `qd_stats.h`, `qd_odds.h`.
-9. **D8 Random tables.** Done: `qd_table.h`, `tools/tables.py`.
+9. **D8 Random tables.** Done: `qd_text.h` in the library; the table
+   system as an example in `examples/tables/`.
 10. **D9 Fair mode.**
 11. **D10 Manual and v1.0.**
 

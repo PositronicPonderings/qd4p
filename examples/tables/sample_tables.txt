@@ -1,5 +1,6 @@
 # Sample random tables for qd4p_console. Built into the console with:
-#   python3 tools/tables.py build examples/sample_tables.txt --c examples/sample_tables.h --name sample_tables
+#   python3 examples/tables/tables.py build examples/tables/sample_tables.txt \
+#       --c examples/tables/sample_tables.h --name sample_tables
 
 table Forest encounters
 roll 2d6

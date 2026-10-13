@@ -26,12 +26,15 @@ pass=0; fail=0
 # every run, so the C engine and the reference are always compared.
 python3 rng_reference.py --c-goldens > $B/roll_goldens.h || { echo "FAIL  rng_reference.py"; exit 1; }
 # ... and the random-table test asset from its text, by the PC tool itself.
-python3 ../../tools/tables.py build tables_test.txt --c $B/tables_test.h --name tables_test > /dev/null 2>&1 \
-    || { echo "FAIL  tools/tables.py"; exit 1; }
+python3 ../../examples/tables/tables.py build tables_test.txt --c $B/tables_test.h --name tables_test > /dev/null 2>&1 \
+    || { echo "FAIL  examples/tables/tables.py"; exit 1; }
 
 for t in test_*.c; do
     name=${t%.c}
-    if ! $CC $CF -o $B/$name $t $LIB -lm 2> $B/$name.build.log; then
+    # a test can ask for an example's source too: a line " * also: path"
+    ALSO=$(sed -n 's/^ \* also: //p' $t)
+    INC=""; for a in $ALSO; do INC="$INC -I$(dirname $a)"; done
+    if ! $CC $CF $INC -o $B/$name $t $ALSO $LIB -lm 2> $B/$name.build.log; then
         echo "BUILD FAIL  $name (see tests/host/$B/$name.build.log)"
         fail=$((fail+1)); continue
     fi

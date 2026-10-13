@@ -1,13 +1,25 @@
-# Random tables
+# Random tables: an example
+
+**This is example code, not part of the QD4P library.** QD4P provides the
+building blocks every table system needs (`qd4p/qd_text.h`: dice inside
+text, a hook for links, rolls that pick from ranges); this folder is one
+complete table system built from them, with its own file format and PC
+tool. Copy it into an app and change it to suit: columns, weights,
+no-repeat draws, conditions. The console uses it for its sample tables.
+
+| File | What it is |
+| --- | --- |
+| `table.h`, `table.c` | the device side: read the asset in place, roll with the working (`tbl_*`) |
+| `tables.py` | the PC side: check, build, dump |
+| `sample_tables.txt` | six sample tables |
+| `sample_tables.h` | the same, built as a C array for the console |
 
 A random table is a die roll and a list of results, the way rulebooks print
-them. QD4P rolls them on the device, following links to other tables and
-rolling any dice inside an entry, and keeps the working so you can see what
-was rolled.
-
-Tables are written as plain text on a PC, checked and turned into a small
-binary asset by `tools/tables.py`, and read by the device straight from
-flash.
+them. This system rolls them on the device, following links to other
+tables and rolling any dice inside an entry, and keeps the working so you
+can see what was rolled. Tables are written as plain text on a PC, checked
+and turned into a small binary asset by `tables.py`, and read by the
+device straight from flash.
 
 ## Writing a table
 
@@ -67,10 +79,10 @@ table Bandit leaders
 ## Checking and building
 
 ```
-python3 tools/tables.py check  my_tables.txt
-python3 tools/tables.py build  my_tables.txt -o tables.bin
-python3 tools/tables.py build  my_tables.txt --c my_tables.h --name my_tables
-python3 tools/tables.py dump   tables.bin > recovered.txt
+python3 examples/tables/tables.py check  my_tables.txt
+python3 examples/tables/tables.py build  my_tables.txt -o tables.bin
+python3 examples/tables/tables.py build  my_tables.txt --c my_tables.h --name my_tables
+python3 examples/tables/tables.py dump   tables.bin > recovered.txt
 ```
 
 `check` (and `build`, which checks first) reports:
@@ -88,41 +100,48 @@ python3 tools/tables.py dump   tables.bin > recovered.txt
 recovered and edited.
 
 `--c` writes the asset as a C array, for building tables into a program
-(the console's samples are built this way, from
-`examples/sample_tables.txt`).
+(the console's samples are built this way, from `sample_tables.txt`).
 
 ## On the device
 
 ```c
-qd_tables_t tables;
-qd_table_result_t r;
+#include "table.h"
 
-qd_tables_open(&tables, asset, asset_size);            /* checks every byte once */
-qd_table_roll(&tables, qd_tables_find(&tables, "Forest encounters"), &r);
+tbl_set_t tables;
+tbl_result_t r;
+
+tbl_open(&tables, asset, asset_size);                  /* checks every byte once */
+tbl_roll(&tables, tbl_find(&tables, "Forest encounters"), &r);
 
 printf("%s\n", r.text);                                /* "Bandits, led by Grey Meg, ..." */
 for (int i = 0; i < r.steps; i++)                      /* the working */
     printf("%*s%s %s: %ld\n", 2 * r.step[i].depth, "",
-           qd_table_name(&tables, r.step[i].table), r.step[i].what, (long)r.step[i].value);
+           tbl_name(&tables, r.step[i].table), r.step[i].what, (long)r.step[i].value);
 ```
 
 - **The working** (`r.step[]`): every table roll (which table, the dice,
   the value), every inline roll, and every extra roll from "roll twice",
   with how deep in the links it happened.
-- **Flags** in `r.flags`: `QD_TABLE_NO_ROW` (a value with no entry, shown
-  as "(no entry for 13)"), `QD_TABLE_DEEP` (links too deep), `QD_TABLE_BAD`
-  (an entry's link or roll couldn't be read, shown as `[?]` or `{?}`),
-  `QD_TABLE_CUT` (text longer than `QD_TABLE_TEXT`, 320 characters).
+- **Flags** in `r.flags`: `TBL_NO_ROW` (a value with no entry, shown as
+  "(no entry for 13)"), `TBL_DEEP` (links too deep), `TBL_BAD` (an entry's
+  link or roll couldn't be read, shown as `[?]` or `{?}`), `TBL_CUT` (text
+  longer than `TBL_TEXT`, 320 characters).
 - The asset is read where it lies, never copied, so it can live in flash
-  or an asset pack. `qd_tables_open` checks every offset and string once,
-  so a damaged asset is refused rather than read past its end.
-- Limits (`qd_config.h`): `QD_TABLE_DEPTH` 8, `QD_TABLE_TEXT` 320,
-  `QD_TABLE_STEPS` 24.
+  or an asset pack. `tbl_open` checks every offset and string once, so a
+  damaged asset is refused rather than read past its end.
+- Limits (`table.h`): `TBL_DEPTH` 8, `TBL_TEXT` 320, `TBL_STEPS` 24.
+- How it uses QD4P: `qd_roll_text` rolls each table's dice, and
+  `qd_expand_ex` expands each entry, with a hook that rolls `[links]` on
+  the named table. The rest (the asset, "Roll twice", the working) is this
+  example's own.
 
 In the console: `tables` lists the samples, `table forest` (a name, the
 start of one, or a number) rolls one with its working.
 
 ## The asset format
+
+All of it is this example's choice; an app is free to store tables any way
+it likes.
 
 Little-endian; every string ends in a 0 byte so the device can use it in
 place.

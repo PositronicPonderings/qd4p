@@ -109,21 +109,11 @@
 #define QD_MAX_NESTING          8
 #endif
 
-/* --- Random tables ------------------------------------------------------- */
+/* --- Dice in text (qd_text.h) -------------------------------------------- */
 
-/** Tables inside tables: [Treasure] -> [Trinket] is two deep. */
-#ifndef QD_TABLE_DEPTH
-#define QD_TABLE_DEPTH          8
-#endif
-
-/** Characters in a table result's text (longer results are cut, flagged). */
-#ifndef QD_TABLE_TEXT
-#define QD_TABLE_TEXT           320
-#endif
-
-/** Rolls kept as a table result's working (table rolls and inline rolls). */
-#ifndef QD_TABLE_STEPS
-#define QD_TABLE_STEPS          24
+/** Inline rolls kept as the working of one qd_expand() call. */
+#ifndef QD_EXPAND_ROLLS
+#define QD_EXPAND_ROLLS         16
 #endif
 
 /* --- Stats for nerds and odds ------------------------------------------- */

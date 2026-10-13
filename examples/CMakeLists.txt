@@ -6,7 +6,7 @@
 #  Example programs. Each is its own build target and .uf2.
 #    qd4p_console   try QD4P from a USB serial terminal
 # ---------------------------------------------------------------------------
-add_executable(qd4p_console console.c)
+add_executable(qd4p_console console.c tables/table.c)   # tables/: an example table system
 target_link_libraries(qd4p_console pico_stdlib qd4p m)
 target_compile_options(qd4p_console PRIVATE -Wall -Wextra)
 pico_enable_stdio_usb(qd4p_console 1)

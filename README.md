@@ -8,7 +8,8 @@ criticals so your program doesn't have to.
 Work in progress: randomness, dice and decks, the roll engine, the dice
 notation parser and the game systems (D&D 5e, Savage Worlds, Call of
 Cthulhu 7e, FATE, Vampire 5e, DCC), rerolls, roll sets, odds and stats
-for nerds and random tables are done; fair mode is next. The layers, each usable on its own:
+for nerds and dice in text (the building blocks for random tables) are
+done; fair mode is next. The layers, each usable on its own:
 
 | Layer | What it does |
 |---|---|
@@ -23,7 +24,7 @@ Everything except the hardware entropy sources is portable C, built and
 tested on a PC as well as the Pico. No dynamic memory. No dependencies
 beyond the Pico SDK.
 
-Dice notation: [docs/notation.md](docs/notation.md). Odds and stats: [docs/odds-and-stats.md](docs/odds-and-stats.md). Random tables: [docs/tables.md](docs/tables.md). Design: [docs/design.md](docs/design.md). What to check on the Pico after each milestone: [docs/hardware-checks.md](docs/hardware-checks.md).
+Dice notation: [docs/notation.md](docs/notation.md). Odds and stats: [docs/odds-and-stats.md](docs/odds-and-stats.md). Random tables: an example system in [examples/tables](examples/tables/README.md). Design: [docs/design.md](docs/design.md). What to check on the Pico after each milestone: [docs/hardware-checks.md](docs/hardware-checks.md).
 
 ## Build and try it
 

@@ -24,7 +24,8 @@
 
 #include "qd4p.h"
 #include "qd_entropy_pico.h"
-#include "sample_tables.h"         /* built from sample_tables.txt by tools/tables.py */
+#include "tables/table.h"          /* the example table system (not part of QD4P) */
+#include "tables/sample_tables.h"  /* built from sample_tables.txt by tables/tables.py */
 
 /* ------------------------------------------------------------------------ */
 /* Commands                                                                 */
@@ -638,16 +639,16 @@ static void cmd_stats(char *args)
     if (con_stats.untracked) printf("(%lu rolls of other dice not tracked)\n", (unsigned long)con_stats.untracked);
 }
 
-/* --- D8: random tables ------------------------------------------------- */
-static qd_tables_t con_tables;
+/* --- D8: random tables (the example in tables/, built on qd_text.h) ------ */
+static tbl_set_t con_tables;
 
 /* tables: the built-in sample tables */
 static void cmd_tables(char *args)
 {
     (void)args;
     for (int k = 0; k < con_tables.count; k++)
-        printf("  %d  %-20s %-6s %d entries\n", k + 1, qd_table_name(&con_tables, k),
-               qd_table_dice(&con_tables, k), qd_table_entries(&con_tables, k));
+        printf("  %d  %-20s %-6s %d entries\n", k + 1, tbl_name(&con_tables, k),
+               tbl_dice(&con_tables, k), tbl_entries(&con_tables, k));
     printf("roll one with: table <name or number>   (e.g. table forest)\n");
 }
 
@@ -658,25 +659,25 @@ static void cmd_table(char *args)
     if (isdigit((unsigned char)*args)) {
         k = atoi(args) - 1;
     } else if (*args) {
-        k = qd_tables_find(&con_tables, args);
+        k = tbl_find(&con_tables, args);
         /* or the first table whose name starts with what was typed */
         for (int i = 0; k < 0 && i < con_tables.count; i++)
-            if (!strncasecmp(qd_table_name(&con_tables, i), args, strlen(args))) k = i;
+            if (!strncasecmp(tbl_name(&con_tables, i), args, strlen(args))) k = i;
     }
     if (k < 0 || k >= con_tables.count) { printf("no such table - try 'tables'\n"); return; }
-    static qd_table_result_t r;
-    qd_table_roll(&con_tables, k, &r);
-    printf("%s\n", qd_table_name(&con_tables, k));
+    static tbl_result_t r;
+    tbl_roll(&con_tables, k, &r);
+    printf("%s\n", tbl_name(&con_tables, k));
     for (int i = 0; i < r.steps; i++) {
-        const qd_table_step_t *s = &r.step[i];
+        const tbl_step_t *s = &r.step[i];
         printf("  %*s", 2 * s->depth, "");
-        if (s->kind == QD_STEP_INLINE) printf("{%s}: %ld\n", s->what, (long)s->value);
-        else printf("%s%s %s: %ld\n", s->kind == QD_STEP_AGAIN ? "again: " : "",
-                    qd_table_name(&con_tables, s->table), s->what, (long)s->value);
+        if (s->kind == TBL_STEP_INLINE) printf("{%s}: %ld\n", s->what, (long)s->value);
+        else printf("%s%s %s: %ld\n", s->kind == TBL_STEP_AGAIN ? "again: " : "",
+                    tbl_name(&con_tables, s->table), s->what, (long)s->value);
     }
     printf("  => %s\n", r.text);
-    if (r.flags & QD_TABLE_DEEP) printf("  (links went too deep; stopped)\n");
-    if (r.flags & QD_TABLE_CUT)  printf("  (result cut short)\n");
+    if (r.flags & TBL_DEEP) printf("  (links went too deep; stopped)\n");
+    if (r.flags & TBL_CUT)  printf("  (result cut short)\n");
 }
 
 /* custom <count> <face> <face> ...   face = value[*weight][/label] */
@@ -898,7 +899,7 @@ int main(void)
     qd_rng_init_hw();                                         /* hardware seed at boot */
     qd_parse_set_lookup(con_lookup, NULL);
     qd_stats_watch(&con_stats);                               /* count every die from now on */
-    qd_tables_open(&con_tables, sample_tables, sizeof(sample_tables));
+    tbl_open(&con_tables, sample_tables, sizeof(sample_tables));
     printf("\nQD4P %s console - type help\n> ", qd_version());
 
     char line[128];
