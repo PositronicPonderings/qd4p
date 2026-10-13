@@ -323,9 +323,33 @@ static void test_pools(void)
     CHECK(ok, "5d6 sets: every pair or better found, biggest first");
 }
 
+/* One qd_roll_t, built again for each roll: every builder starts afresh,
+ * whatever was in the roll before (a damage roll, another system). */
+static void test_reuse(void)
+{
+    static qd_roll_t r;
+    static qd_result_t res;
+    bool ok = true;
+    for (int i = 0; i < 50 && ok; i++) {
+        ok &= qd_sys_dnd(&r, QD_DND_ATTACK, i % 3 - 1);
+        qd_roll_add(&r, 5);
+        qd_roll_vs(&r, 15);
+        ok &= qd_roll_run(&r, &res) == QD_OK && res.total >= 6 && res.total <= 25;
+        qd_roll_init(&r);                                   /* a damage roll in between */
+        qd_roll_dice(&r, 2, 8);
+        ok &= qd_roll_run(&r, &res) == QD_OK;
+        ok &= qd_sys_sw(&r, 8, true) && qd_roll_run(&r, &res) == QD_OK && r.sys.id == QD_SYS_SW;
+        ok &= qd_sys_coc(&r, 50, 1) && qd_roll_run(&r, &res) == QD_OK && !r.sys.has_target;
+        ok &= qd_sys_fate(&r) && qd_sys_vtm(&r, 6, 2) && qd_sys_dcc(&r, 1, 20, 1) &&
+              qd_roll_run(&r, &res) == QD_OK && r.pool_count == 1;
+    }
+    CHECK(ok, "each builder starts a fresh roll: one qd_roll_t, reused for every roll");
+}
+
 int main(void)
 {
     qd_rng_init_hw();
+    test_reuse();
     test_plain();
     test_dnd();
     test_savage();

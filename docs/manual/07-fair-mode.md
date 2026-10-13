@@ -1,8 +1,8 @@
-# Fair mode
+# 7. Fair mode
 
-Fair mode lets the players check, after the session, that the dice roller
-didn't change anything during it. Nothing is hidden from them except a
-secret key, and the key is revealed when the session ends.
+Fair mode lets the players check, after the session, that the dice roller didn't change anything during it. Nothing is hidden from them except a secret key, and the key is revealed when the session ends.
+
+It's for the table where somebody, sooner or later, says "that thing hates me". Most tables never need it. The ones that do will be glad it's there: it costs about 5 KB of flash when it's used, and nothing when it isn't.
 
 - [At the table](#at-the-table)
 - [Checking afterwards](#checking-afterwards)
@@ -13,86 +13,111 @@ secret key, and the key is revealed when the session ends.
 
 ## At the table
 
-1. **Start.** The DM turns fair mode on (`fair` on the console). The device
-   shows a **fingerprint**: six words, like
+A whole session at the console, start to finish:
 
-   ```
-   baker canyon dove rose cycle orange
-   ```
+```console
+> fair
+fair mode on. The fingerprint - everyone write it down now:
+  hook brush farm mask pizza easel
+Each roll, reroll, deal and table roll is numbered from #1.
+'fair end' shows the key; check any action with it afterwards.
+> 4d6k3
+fair #1
+4d6 k3
+  4d6 k3: 6 6 (4) 5  = 17
+  total 17
+> atk + 5 vs 15
+fair #2
+atk + 5 vs 15
+  1d20: 13  = 13
+  total 18
+  => Hit
+> table forest
+fair #3
+Forest encounters
+  Forest encounters 2d6: 2
+  => An owlbear, very hungry
+> fair end
+fair mode off after 3 actions. The key (16 words):
+  door tent lilac tiger angle scout bugle wand
+  dove dawn easel wolf hawk planet jungle soap
+Its fingerprint, shown at the start: hook brush farm mask pizza easel
+To check: 'fair check' and the 16 words, then each action with its
+number, e.g. #3 4d6k3   (the PC build of this console does the same)
+```
 
-   Everyone who wants to check later writes it down **now**, before
-   anything is rolled. It is the device's promise: it locks in the key
-   without revealing it.
+1. **Start.** The DM turns fair mode on (`fair`). The device shows a **fingerprint**: six words. Everyone who wants to check later writes them down **now**, before anything is rolled. It is the device's promise: it locks in the key without revealing it.
 
-2. **Play.** Every roll, reroll, deal and table roll is an **action**, and
-   each one gets the next number: `fair #1`, `fair #2`, ... A player who
-   wants to check a roll writes down its number, what was rolled and what
-   came up:
+2. **Play.** Every roll, reroll, deal and table roll is an **action**, and gets the next number: `fair #1`, `fair #2`, ... A player who wants to check a roll writes down its number, what was rolled and what came up: `#2 atk + 5 vs 15: 18, hit`. Nobody has to write everything down. Each action can be checked on its own.
 
-   ```
-   #14  atk +5 vs 15   rolled 19, total 24, hit
-   ```
+3. **End.** The DM ends the session (`fair end`). The device shows the **key**: sixteen words. Write them down, or take a photo.
 
-   Nobody has to write everything down. Each action can be checked on its
-   own.
-
-3. **End.** The DM ends the session (`fair end`). The device shows the
-   **key**: sixteen words. Write them down, or take a photo:
-
-   ```
-   wood cherry shell shoe tower gate coffee nest
-   piano butter ankle echo wizard lemon vase baker
-   ```
-
-While fair mode is on, everything that would normally change the
-generator is ignored: stirring in entropy (`stir`, `trng`, `adc`, `tap`),
-hardware reseeds and replay mode (`seed`). Starting a new session while one
-is running is refused too.
+While fair mode is on, everything that would normally change the generator is ignored: stirring in entropy (`stir`, `trng`, `adc`, `tap`), hardware reseeds and replay mode (`seed`). Starting a new session while one is running is refused too.
 
 ## Checking afterwards
 
-The checker is the same console, built for a PC from the same source and
-library as the device, so the two can't disagree:
+The checker is the same console, built for a PC from the same source and library as the device, so the two can't disagree. On Linux, macOS or WSL:
 
 ```
-sh examples/pc/build.sh          # Linux, macOS or WSL; writes examples/pc/qd4p_pc
+sh examples/pc/build.sh
 examples/pc/qd4p_pc
 ```
 
-Then:
+(The console on the device can check too, with the same commands.) Type `fair check` and the key, on one line or, as the device shows it, two:
 
-```
-> fair check wood cherry shell shoe tower gate coffee nest piano butter ankle echo wizard lemon vase baker
+```console
+> fair check door tent lilac tiger angle scout bugle wand
+8 words so far: type the other 8 on the next line
+> dove dawn easel wolf hawk planet jungle soap
 checking with this key. Its fingerprint:
-  baker canyon dove rose cycle orange
-```
-
-**First, compare the fingerprint** with the one written down at the start.
-If it matches, this key is the one the device locked in before the first
-roll. (Each word can be cut to its first three letters: `woo che she ...`.
-No two words share their first three letters.)
-
-**Then type each action with its number**, in any order:
-
-```
-> #14 atk +5 vs 15
-fair #14
+  hook brush farm mask pizza easel
+If that matches the one written down at the start, the key is the
+session's. Now type each action with its number, in any order:
+  #3 4d6k3   #4 reroll 2   #7 table forest   (rerolls and deals need
+  the actions before them typed first). 'fair end' when done.
+> #2 atk + 5 vs 15
+fair #2
 atk + 5 vs 15
-  1d20: 19  = 19
-  total 24
+  1d20: 13  = 13
+  total 18
+  => Hit
+> #1 4d6k3
+fair #1
+4d6 k3
+  4d6 k3: 6 6 (4) 5  = 17
+  total 17
+> #3 table forest
+fair #3
+Forest encounters
+  Forest encounters 2d6: 2
+  => An owlbear, very hungry
+> fair end
+done checking; back to live rolls
+```
+
+**First, compare the fingerprint** with the one written down at the start. If it matches, this key is the one the device locked in before the first roll. Each word can be cut to its first three letters (`doo ten lil ...`): no two words share their first three letters.
+
+**Then type each action with its number**, in any order. Same dice, same result: that action is confirmed. A different result means something changed: a typo in the roll or the number, a key word written down wrong, or a device that cheated. Try a wrong number and see:
+
+```console
+> fair check door tent lilac tiger angle scout bugle wand dove dawn easel wolf hawk planet jungle soap
+checking with this key. Its fingerprint:
+  hook brush farm mask pizza easel
+If that matches the one written down at the start, the key is the
+session's. Now type each action with its number, in any order:
+  #3 4d6k3   #4 reroll 2   #7 table forest   (rerolls and deals need
+  the actions before them typed first). 'fair end' when done.
+> #1 atk + 5 vs 15
+fair #1
+atk + 5 vs 15
+  1d20: 17  = 17
+  total 22
   => Hit
 ```
 
-Same dice, same result: that roll is confirmed. A different result means
-something changed: a typo in the roll or the number, a key word written
-down wrong, or a device that cheated.
+Action #1 was the 4d6k3, so its number gives this d20 a 17, where the table saw a 13. The total is different, and that's the point: only the right number, the right roll and the right key give the dice that were rolled.
 
-`fair end` stops checking. The console on the device can check as well,
-with the same commands.
-
-A file of commands works too: `examples/pc/qd4p_pc < session.txt` runs
-each line and prints the results, with each line echoed so the log reads
-like the session.
+A file of commands works too: `examples/pc/qd4p_pc < session.txt` runs each line and prints the results, with each line shown, so the log reads like the session.
 
 ## What it proves, and what it doesn't
 
@@ -127,7 +152,7 @@ Most actions stand alone; a few depend on what came before them.
 
 | Action | Type to check it | Needs first |
 |---|---|---|
-| A roll | `#14 atk +5 vs 15`, `#3 6 x 4d6k3`, `#9 2d6; 1d8` | nothing |
+| A roll | `#14 atk + 5 vs 15`, `#3 6 x 4d6k3`, `#9 2d6; 1d8` | nothing |
 | A table roll | `#7 table forest` | nothing (the same tables) |
 | `pct` | `#8 pct b1` | nothing |
 | A custom die | `#20 3d{custom}` | `custom 0 ...` with the same faces |
@@ -147,33 +172,44 @@ from the key.
 
 ## In a program
 
-```c
-#include "qd4p.h"
-
+```c example=fair_program
+static qd_roll_t roll;
+static qd_result_t res;
 char words[QD_FAIR_TEXT];
-qd_fair_start();                                   /* a new secret key */
-qd_fair_fingerprint_words(words, sizeof(words));   /* show the six words */
-
-uint32_t n = qd_fair_begin();                      /* before each action */
-show_number(n);
-qd_roll_run(&roll, &res);
-
 uint8_t key[QD_FAIR_KEY_BYTES];
-qd_fair_end(key);                                  /* reveal */
-qd_fair_words(key, QD_FAIR_KEY_BYTES, words, sizeof(words));
+
+qd_rng_init_hw();
+qd_fair_start();                                    /* a new secret key */
+qd_fair_fingerprint_words(words, sizeof words);
+printf("fingerprint: %s\n", words);                 /* show it before any roll */
+
+qd_roll_init(&roll);
+qd_roll_dice(&roll, 3, 6);
+for (int i = 0; i < 3; i++) {
+    uint32_t n = qd_fair_begin();                   /* before each action */
+    qd_roll_run(&roll, &res);
+    printf("#%lu 3d6: %ld\n", (unsigned long)n, (long)res.total);
+}
+
+qd_fair_end(key);                                   /* reveal */
+qd_fair_words(key, 8, words, sizeof words);
+printf("key: %s\n", words);
+qd_fair_words(key + 8, 8, words, sizeof words);
+printf("     %s\n", words);
 ```
 
-Call `qd_fair_begin()` once per action the players see, right before it
-rolls, and show its number with the result. Anything rolled without a
-`qd_fair_begin()` carries on from the last action's numbers: still fixed by
-the key, but only checkable by replaying that whole action.
+```text output
+fingerprint: hook brush farm mask pizza easel
+#1 3d6: 16
+#2 3d6: 8
+#3 3d6: 5
+key: door tent lilac tiger angle scout bugle wand
+     dove dawn easel wolf hawk planet jungle soap
+```
 
-To check, `qd_fair_start_key(key)` and `qd_fair_begin_at(n)` before
-repeating action `n`. `qd_fair_begin_at()` only works on a session started
-from a known key; on a live session it does nothing, so a program can't
-redo an action by mistake. `qd_fair_read_words()` turns typed words back
-into bytes, accepting any case, commas or hyphens, and three-letter
-prefixes. The full API is in `qd4p/qd_fair.h`.
+Call [`qd_fair_begin()`](reference/fair.md#qd_fair_begin) once per action the players see, right before it rolls, and show its number with the result. Anything rolled without it carries on from the last action's numbers: still fixed by the key, but only checkable by repeating that whole action.
+
+To check, [`qd_fair_start_key(key)`](reference/fair.md#qd_fair_start_key) and [`qd_fair_begin_at(n)`](reference/fair.md#qd_fair_begin_at) before repeating action `n`. `qd_fair_begin_at()` only works on a session started from a known key; on a live session it does nothing, so a program can't redo an action by mistake. [`qd_fair_read_words()`](reference/fair.md#qd_fair_read_words) turns typed words back into bytes. Every function: [the reference](reference/fair.md).
 
 ## How it works
 

@@ -27,13 +27,12 @@ void qd_roll_vs(qd_roll_t *r, int32_t target)
 
 /* Every builder starts from an empty roll and records how many sum steps
  * it made, so qd_format can write the shortcut back instead of them. */
+/* Every builder starts a fresh roll, so an app can keep one qd_roll_t and
+ * build each attack into it in turn. (The parser only calls a builder at
+ * the start of a roll, where the roll is empty anyway.) */
 static bool begin(qd_roll_t *r, uint8_t id)
 {
-    if (r->op_count || r->pool_count) {
-        r->error = QD_ERR_SUM;
-        return false;
-    }
-    memset(&r->sys, 0, sizeof(r->sys));
+    qd_roll_init(r);
     r->sys.id = id;
     return true;
 }

@@ -42,6 +42,14 @@ OPTIONS after the name
     compile-only    compile it, don't run it
     no-output       run it, but it shows no output block
 
+CONSOLE TRANSCRIPTS
+    A block whose info string is "console" (optionally "console seed=N")
+    is a session at the qd4p console: lines starting with "> " are typed
+    in, everything else is what the console prints. The console, built for
+    the PC, is run with those lines and must print exactly that (timings,
+    "41 us" or "3 ms", are compared as "N us", "N ms"). --update rewrites
+    the printed part. With seed=N, "seed N" is typed first, unseen.
+
 THE DICE
     Examples are linked with doc_platform.c, whose "hardware" randomness is
     the same every run, so their output is too. Pico programs build against
@@ -59,6 +67,8 @@ BUILD = os.path.join(HERE, "build", "doc")
 LIB = os.path.join(ROOT, "qd4p")
 CC = os.environ.get("CC", "cc")
 FENCE = re.compile(r"^```c example=(\S+)([^\n]*)\n(.*?)^```[ \t]*\n", re.S | re.M)
+CONSOLE = re.compile(r"^```console([^\n]*)\n(.*?)^```[ \t]*\n", re.S | re.M)
+TIMING = re.compile(r"\b\d+ (ms|us)\b")
 OUTPUT = re.compile(r"(\s*\n)?```text output[ \t]*\n(.*?)^```[ \t]*\n", re.S | re.M)  # .match(text, pos): from pos
 
 TEMPLATE = """#include <stdio.h>
@@ -98,6 +108,32 @@ def find_examples():
     return found
 
 
+def find_transcripts():
+    found = []
+    for root, _dirs, files in os.walk(MANUAL):
+        for f in sorted(files):
+            if f.endswith(".md"):
+                path = os.path.join(root, f)
+                text = open(path, encoding="utf-8").read()
+                for m in CONSOLE.finditer(text):
+                    found.append({"opts": options(m.group(1)), "body": m.group(2), "path": path,
+                                  "span": (m.start(2), m.end(2))})
+    return found
+
+
+def console_run(exe, typed, seed):
+    """What the console prints for these lines, as a transcript."""
+    stdin = ("seed %s\n" % seed if seed else "") + "".join(t + "\n" for t in typed)
+    r = run([exe], input=stdin, timeout=60)
+    out = r.stdout.replace("\r", "")
+    out = out[out.index("> "):]                         # drop the banner
+    if seed:
+        out = out[out.index("\n> ", out.index("seed ")) + 1:]   # and the hidden seed line
+    if out.endswith("> \n"):
+        out = out[:-3]
+    return tidy(out)
+
+
 def tidy(s):
     lines = [line.rstrip() for line in s.replace("\r", "").split("\n")]
     while lines and not lines[-1]:
@@ -132,6 +168,13 @@ def main():
     r = run([CC, *cflags, "-c", os.path.join(ROOT, "examples/tables/table.c"), "-o", table_o])
     if r.returncode:
         sys.exit("table.c: " + r.stderr)
+
+    # The console, for transcripts: the same console.c, with repeatable dice.
+    console = os.path.join(BUILD, "qd4p_console")
+    r = run([CC, *cflags, "-o", console, os.path.join(ROOT, "examples/console.c"),
+             os.path.join(ROOT, "examples/tables/table.c"), *objs, "-lm"])
+    if r.returncode:
+        sys.exit("console build failed:\n" + r.stderr[-3000:])
 
     examples = [e for e in find_examples() if not args or any(e["name"].startswith(a) for a in args)]
     names = {}
@@ -192,9 +235,32 @@ def main():
         open(path, "w", encoding="utf-8").write(text)
         print("updated %d output%s in %s" % (len(items), "s" if len(items) > 1 else "", os.path.relpath(path, ROOT)))
 
+    # transcripts after the example outputs are written: their places move
+    transcripts = find_transcripts() if not args else []
+    tedits = {}
+    for t in transcripts:
+        typed = [line[2:] for line in t["body"].split("\n") if line.startswith("> ")]
+        got = console_run(console, typed, t["opts"].get("seed"))
+        want = tidy(t["body"])
+        if TIMING.sub(r"N \1", got) != TIMING.sub(r"N \1", want):
+            if update:
+                tedits.setdefault(t["path"], []).append((t, got))
+            else:
+                failures.append("console transcript in %s, starting '%s':\n--- manual\n%s--- printed\n%s"
+                                % (os.path.relpath(t["path"], ROOT), typed[0] if typed else "", want, got))
+    for path, items in tedits.items():
+        text = open(path, encoding="utf-8").read()
+        for t, got in sorted(items, key=lambda i: -i[0]["span"][0]):
+            a, b = t["span"]
+            text = text[:a] + got + text[b:]
+        open(path, "w", encoding="utf-8").write(text)
+        print("updated %d console transcript%s in %s" % (len(items), "s" if len(items) > 1 else "",
+                                                       os.path.relpath(path, ROOT)))
+
     for f in failures:
         print("FAIL  " + f)
-    print("manual examples: %d checked, %d failures" % (len(examples), len(failures)))
+    print("manual examples: %d programs and %d console sessions checked, %d failures"
+          % (len(examples), len(transcripts), len(failures)))
     sys.exit(1 if failures else 0)
 
 

@@ -9,7 +9,7 @@ Header: `qd_sys.h` (included by `qd4p.h`).
 2. [`qd_sys_outcome`](#qd_sys_outcome) reads a result the way that game does: "Success, 1 raise", "Hard success", "Messy critical", "Critical hit".
 3. The parser builds exactly the same rolls from words (`sw8`, `coc 65 b1`, `atk adv`): [Game systems in notation](../05-notation.md#game-systems).
 
-Each builder starts a fresh roll ([`qd_roll_init`](rolls.md#qd_roll_init) is called for you). Add maths and a target afterwards: `qd_roll_add(&roll, 5)`, [`qd_roll_vs(&roll, 15)`](#qd_roll_vs). Only the builders you call are linked into your program; judging links them all, about 4 KB.
+Each builder starts a fresh roll ([`qd_roll_init`](rolls.md#qd_roll_init) is called for you), so one `qd_roll_t` can be built into again and again: an attack, then its damage, then the next attack. Add maths and a target afterwards: `qd_roll_add(&roll, 5)`, [`qd_roll_vs(&roll, 15)`](#qd_roll_vs). Only the builders you call are linked into your program; judging links them all, about 4 KB.
 
 ---
 
@@ -154,7 +154,7 @@ d20  7,  7: 12  Miss
 | Parameter | Meaning |
 |---|---|
 | `kind` | `QD_DND_ATTACK`, `QD_DND_CHECK` or `QD_DND_SAVE` |
-| `adv` | 1 for advantage, -1 for disadvantage, 0 for neither (more than 1 is allowed, for house rules) |
+| `adv` | positive for advantage, negative for disadvantage, 0 for neither. Advantage doesn't stack in 5e, so 2 is the same as 1 |
 
 **The rules it reads:** on an **attack**, a natural 20 is a critical hit and hits whatever the total; a natural 1 misses whatever the total. On a check or save there's no such rule, so a natural 20 or 1 is only noted in `detail`. "Natural" means the d20 that counted, after advantage set the other one aside.
 

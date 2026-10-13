@@ -176,13 +176,6 @@ static void cmd_next(char *args)
         printf("%lu%s", (unsigned long)qd_rng_next32(), (i % 4 == 3 || i == n - 1) ? "\n" : "  ");
 }
 
-/* Chi-square limit at p = 0.001 (Wilson-Hilferty approximation). */
-static double chi_limit(int df)
-{
-    double k = 2.0 / (9.0 * df);
-    double t = 1.0 - k + 3.090 * sqrt(k);
-    return df * t * t * t;
-}
 
 static void cmd_test(char *args)
 {
@@ -203,7 +196,7 @@ static void cmd_test(char *args)
         if (sides <= 20) printf("  %2ld: %7lu  %+.3f%%\n", f + 1, (unsigned long)counts[f],
                                 100.0 * (counts[f] - expect) / expect);
     }
-    double limit = chi_limit((int)sides - 1);
+    double limit = qd_chi_limit((int)sides - 1);
     printf("chi-square %.1f, limit %.1f: %s\n", chi, limit,
            chi < limit ? "PASS (looks fair)" : "FAIL (try again; 1 in 1000 fair runs fail)");
     printf("%ld rolls in %lu ms (%.0f per second)\n", rolls, (unsigned long)(us / 1000),
@@ -847,7 +840,7 @@ static void cmd_custom(char *args)
                *faces[f].label ? "/" : "", faces[f].label,
                100.0 * counts[f] / count, qd_die_face_ppm(&die, (uint16_t)f) / 1e4);
     }
-    double limit = chi_limit(n - 1);
+    double limit = qd_chi_limit(n - 1);
     printf("chi-square %.1f, limit %.1f: %s\n", chi, limit, chi < limit ? "PASS" : "FAIL");
 }
 

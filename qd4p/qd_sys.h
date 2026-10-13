@@ -117,14 +117,16 @@ typedef struct {
 } qd_outcome_t;
 
 /* --- Building (the parser uses these too) ------------------------------- */
-/* Each starts a fresh roll with the system's dice. Add maths (qd_roll_add,
- * more pools) and a target (qd_roll_vs) afterwards if you like. */
+/* Each starts a fresh roll with the system's dice, whatever the roll held
+ * before, so one qd_roll_t can be built into again and again. Add maths
+ * (qd_roll_add, more pools) and a target (qd_roll_vs) afterwards. */
 
 /** Judge the roll against N: "vs N". */
 void qd_roll_vs(qd_roll_t *r, int32_t target);
 
-/** D&D 5e: 1d20 with advantage (adv > 0) or disadvantage (adv < 0). kind
- *  QD_DND_ATTACK, _CHECK or _SAVE. */
+/** D&D 5e: 1d20 with advantage (adv > 0) or disadvantage (adv < 0); it
+ *  doesn't stack, so 2 is the same as 1. kind QD_DND_ATTACK, _CHECK or
+ *  _SAVE. */
 bool qd_sys_dnd(qd_roll_t *r, int kind, int adv);
 
 /** Savage Worlds: a trait die (4, 6, 8, 10 or 12 sides) and, for a Wild
