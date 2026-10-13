@@ -220,3 +220,24 @@ the dice it came from.
    `stats`: each kind with its rolls, average against fair, top and bottom
    faces and a verdict (`dd66` adds two d6s each time). `stats 20` draws
    the d20's faces. `stats clear` starts again.
+
+## D8 Random tables
+
+The console has six sample tables built in (`examples/sample_tables.txt`).
+
+1. **List.** `tables`: Forest encounters (2d6), Bandit leaders (1d4, from
+   its ranges), Weather (d6), Treasure (d%), Trinket (dd66), Reaction
+   (2d6).
+2. **Working.** `table forest` a few times: the 2d6 roll, then any linked
+   table indented beneath it (Weather, Bandit leaders), then `=> ` and the
+   finished text. A 3-4 shows `{1d4+1}: N` and "N wolves".
+3. **Roll twice.** `seed 10`, then `table forest`: a 12, two "again:"
+   lines (a 7 and a 6, each with its Weather), and both results joined by
+   "; ": "Nothing stirs. Clear skies.; Nothing stirs. Fog rolls in."
+4. **Inline maths.** `table treasure`: silver is a multiple of 10 (`{2d6 *
+   10}`); a 91-99 links to a Trinket; 00 rolls 3 times.
+5. **Names.** `table 6`, `table reac`, `table REACTION` all roll Reaction;
+   `table nope` says there's no such table.
+6. **On the PC** (optional): `python3 tools/tables.py check
+   examples/sample_tables.txt` says OK; `dump` of a built asset gives the
+   text back.

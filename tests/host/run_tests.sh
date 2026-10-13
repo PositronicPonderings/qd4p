@@ -25,6 +25,9 @@ pass=0; fail=0
 # The roll engine's goldens are written fresh from the Python reference
 # every run, so the C engine and the reference are always compared.
 python3 rng_reference.py --c-goldens > $B/roll_goldens.h || { echo "FAIL  rng_reference.py"; exit 1; }
+# ... and the random-table test asset from its text, by the PC tool itself.
+python3 ../../tools/tables.py build tables_test.txt --c $B/tables_test.h --name tables_test > /dev/null 2>&1 \
+    || { echo "FAIL  tools/tables.py"; exit 1; }
 
 for t in test_*.c; do
     name=${t%.c}
@@ -38,6 +41,12 @@ for t in test_*.c; do
         echo "FAIL  $name:"; sed 's/^/      /' $B/$name.log; fail=$((fail+1))
     fi
 done
+
+if python3 test_tables_py.py > $B/tables_py.log 2>&1; then
+    echo "PASS  $(tail -1 $B/tables_py.log)"; pass=$((pass+1))
+else
+    echo "FAIL  table tool:"; sed 's/^/      /' $B/tables_py.log; fail=$((fail+1))
+fi
 
 if python3 check_disclosure.py > $B/disclosure.log 2>&1; then
     echo "PASS  $(head -1 $B/disclosure.log)"; pass=$((pass+1))

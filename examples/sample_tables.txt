@@ -1,0 +1,46 @@
+# Sample random tables for qd4p_console. Built into the console with:
+#   python3 tools/tables.py build examples/sample_tables.txt --c examples/sample_tables.h --name sample_tables
+
+table Forest encounters
+roll 2d6
+2      An owlbear, very hungry
+3-4    {1d4+1} wolves, circling
+5-9    Nothing stirs. [Weather]
+10-11  Bandits, led by [Bandit leaders]
+12     Roll twice
+
+table Bandit leaders
+1      Grey Meg, one-eyed and patient
+2      Tomas the Smiler, who never stops talking
+3-4    the twins Ada and Ilse, who finish each other's threats
+
+table Weather
+roll d6
+1      Fog rolls in.
+2-3    A light drizzle.
+4-5    Clear skies.
+6      Thunder in the distance; the wind is rising
+       from the north.
+
+table Treasure
+roll d%
+01-40  {3d6} copper pieces
+41-70  {2d6 * 10} silver pieces
+71-90  {1d4} gems worth {2d6 * 10} gp each
+91-99  A [Trinket]
+00     Roll 3 times
+
+table Trinket
+roll dd66
+11-26  brass compass that points to the nearest well
+31-46  locket holding a stranger's portrait
+51-56  key with no lock
+61-66  map of a town that isn't on any map
+
+table Reaction
+roll 2d6
+2-        Hostile, attacks
+3-5       Unfriendly
+6-8       Unsure
+9-11      Talkative
+12+       Friendly, offers help

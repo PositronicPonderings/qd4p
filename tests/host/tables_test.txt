@@ -1,0 +1,45 @@
+# Tables for test_tables.c
+
+table Two
+roll 2d6
+2-6    Low
+7      Seven
+8-12   High
+
+table Links
+roll 1d4
+1      A [two]
+2      {1d6+100}
+3      [Deep]
+4      Roll twice
+
+table Deep
+roll 1d1
+1      down [Deep]
+
+table Gappy
+roll 1d10
+1-5    Low
+
+table Again
+roll 1d6
+1-5    x{1d1}
+6      Roll 3 times
+
+table Escapes
+1      Braces \{not a roll\} and \[not a link\]
+
+table Long
+roll 1d1
+1      [Words] [Words]
+
+table Words
+1      Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod
+       tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam,
+       quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo.
+
+table Open
+roll 2d6+3
+5-        Low
+6-14      Middle
+15+       High
