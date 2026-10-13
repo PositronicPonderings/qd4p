@@ -7,8 +7,8 @@ criticals so your program doesn't have to.
 
 Work in progress: randomness, dice and decks, the roll engine, the dice
 notation parser and the game systems (D&D 5e, Savage Worlds, Call of
-Cthulhu 7e, FATE, Vampire 5e, DCC) are done; rerolls and roll sets are
-next. The layers, each usable on its own:
+Cthulhu 7e, FATE, Vampire 5e, DCC), rerolls and roll sets are done;
+stats for nerds and odds are next. The layers, each usable on its own:
 
 | Layer | What it does |
 |---|---|

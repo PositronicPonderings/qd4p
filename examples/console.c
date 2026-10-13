@@ -213,6 +213,7 @@ static void print_die(const qd_pool_t *p, const qd_die_result_t *d)
     char v[16];
     const char *label = p->die ? qd_die_face_label(p->die, d->face) : "";
     if (*label) snprintf(v, sizeof(v), "[%s]", label);
+    else if (d->flags & QD_DIE_CHANGED) snprintf(v, sizeof(v), "%d->%d", d->was, d->value);
     else snprintf(v, sizeof(v), "%d", d->value);
     uint16_t f = d->flags;
     printf(" %s%s%s%s%s%s%s%s%s", (f & QD_DIE_EXPLODED) ? "!" : "", (f & QD_DIE_IMPLODED) ? "-" : "",
@@ -295,6 +296,29 @@ static void print_error(const char *text, const qd_parse_error_t *err)
     printf(" %s\n", err->message);
 }
 
+/* The last single roll, for 'last' and 'reroll'. */
+static qd_parsed_t last_roll;
+static qd_result_t last_res;
+static bool have_last;
+
+static void print_outcome(const qd_parsed_t *ps, const qd_result_t *res)
+{
+    qd_outcome_t o;
+    if (qd_sys_outcome(&ps->roll, res, &o) && (o.text[0] || o.detail[0])) {
+        if (o.text[0] && o.detail[0]) printf("  => %s  (%s)\n", o.text, o.detail);
+        else printf("  => %s\n", o.text[0] ? o.text : o.detail);
+    }
+}
+
+/* Each roll of a repeat or set, as it is rolled. */
+static void print_each(int index, const qd_result_t *res, void *ctx)
+{
+    const qd_parsed_t *ps = (const qd_parsed_t *)ctx;
+    printf(" #%d\n", index + 1);
+    print_result(ps, res);
+    print_outcome(ps, res);
+}
+
 static void cmd_roll(char *args)
 {
     if (!*args) {
@@ -302,7 +326,6 @@ static void cmd_roll(char *args)
         return;
     }
     static qd_parsed_t rolls[4];
-    static qd_result_t res;
     qd_parse_error_t err;
     int n = qd_parse_line(args, rolls, 4, &err);
     if (n < 0) { print_error(args, &err); return; }
@@ -313,20 +336,92 @@ static void cmd_roll(char *args)
         printf("%s\n", tidy);
         uint16_t w = qd_roll_warnings(&ps->roll);
         if (w) printf("  note: %s\n", qd_warn_text(w));
-        for (int rep = 0; rep < ps->repeat; rep++) {
-            uint32_t t0 = time_us_32();
-            qd_roll_run(&ps->roll, &res);
-            uint32_t us = time_us_32() - t0;
-            if (ps->repeat > 1) printf(" #%d\n", rep + 1);
-            print_result(ps, &res);
-            qd_outcome_t o;
-            if (qd_sys_outcome(&ps->roll, &res, &o) && (o.text[0] || o.detail[0])) {
-                if (o.text[0] && o.detail[0]) printf("  => %s  (%s)\n", o.text, o.detail);
-                else printf("  => %s\n", o.text[0] ? o.text : o.detail);
-            }
-            if (res.rolled > 100) printf("  (%u dice in %lu us)\n", res.rolled, (unsigned long)us);
+        if (ps->repeat > 1 || ps->set) {
+            /* a repeat or a set: each roll, then the set's line */
+            qd_set_result_t s;
+            qd_set_run(ps, &s, print_each, (void *)ps);
+            printf("  set:");
+            for (int i = 0; i < s.count; i++)
+                printf(s.kept[i] ? " %ld" : " (%ld)", (long)s.value[i]);
+            printf("  = %ld%s\n", (long)s.total, s.counting ? " successes" : "");
+            continue;
         }
+        uint32_t t0 = time_us_32();
+        qd_roll_run(&ps->roll, &last_res);
+        uint32_t us = time_us_32() - t0;
+        last_roll = *ps;
+        have_last = true;
+        print_result(ps, &last_res);
+        print_outcome(ps, &last_res);
+        if (last_res.rolled > 100) printf("  (%u dice in %lu us)\n", last_res.rolled, (unsigned long)us);
     }
+}
+
+/* last: the last roll again, with every die numbered for 'reroll' */
+static void cmd_last(char *args)
+{
+    (void)args;
+    if (!have_last) { printf("nothing rolled yet\n"); return; }
+    char tidy[160];
+    qd_format(&last_roll, tidy, sizeof(tidy));
+    printf("%s\n ", tidy);
+    for (int i = 0; i < last_res.dice_count; i++) {
+        printf(" #%d", i + 1);
+        print_die(&last_roll.roll.pools[last_res.dice[i].pool], &last_res.dice[i]);
+    }
+    printf("\n");
+    print_result(&last_roll, &last_res);
+    print_outcome(&last_roll, &last_res);
+}
+
+/* reroll                the whole last roll (a benny, a push)
+ * reroll 2 5            dice #2 and #5 (numbers from 'last')
+ * reroll !=6            every die in play that passes the test (Year Zero push)
+ * reroll best / worst   roll again and keep the better / worse of the two (luck) */
+static void cmd_reroll(char *args)
+{
+    if (!have_last) { printf("nothing rolled yet\n"); return; }
+    qd_err_t e = QD_OK;
+    bool keep = false;
+    while (*args == ' ') args++;
+    if (!*args) {
+        e = qd_reroll_all(&last_roll.roll, &last_res);
+    } else if (!strncmp(args, "best", 4) || !strncmp(args, "worst", 5)) {
+        bool took = qd_reroll_keep(&last_roll.roll, &last_res, args[0] == 'b');
+        keep = true;
+        printf("  rolled %ld and %ld: kept the %s\n", (long)last_res.total, (long)last_res.was_total,
+               took ? "new roll" : "first roll");
+    } else if (isdigit((unsigned char)*args)) {
+        uint16_t which[QD_MAX_KEPT_DICE];
+        int n = 0;
+        char *s = args;
+        while (*s && n < QD_MAX_KEPT_DICE) {
+            long v = strtol(s, &s, 10);
+            if (v < 1) break;
+            which[n++] = (uint16_t)(v - 1);
+            while (*s == ' ' || *s == ',' || *s == '#') s++;
+        }
+        e = qd_reroll_dice(&last_roll.roll, &last_res, which, n);
+    } else {
+        /* a test: read it as a bucket and use that */
+        static qd_parsed_t t;
+        char text[48];
+        qd_parse_error_t err;
+        snprintf(text, sizeof(text), "1d6 [%s]", args);
+        if (!qd_parse(text, &t, &err) || t.roll.bucket_count != 1) {
+            printf("usage: reroll | reroll 2 5 | reroll !=6 | reroll best | reroll worst\n");
+            return;
+        }
+        int n = qd_reroll_matching(&last_roll.roll, &last_res, -1, t.roll.buckets[0].test);
+        if (n < 0) e = QD_ERR_REROLL;
+        else printf("  %d dice rerolled\n", n);
+    }
+    if (e) { printf("can't: %s (see 'last' for the dice numbers)\n", qd_err_text(e)); return; }
+    print_result(&last_roll, &last_res);
+    print_outcome(&last_roll, &last_res);
+    if (!keep)
+        printf("  (rerolled %u time%s; before: total %ld)\n", last_res.rerolls,
+               last_res.rerolls == 1 ? "" : "s", (long)last_res.was_total);
 }
 
 /* parse <text>: show how a roll is read, without rolling it */
@@ -377,6 +472,7 @@ static void cmd_notation(char *args)
         "buckets   [<3, =6, 3-5, =max, =+]   at the end of a roll\n"
         "groups    base:4d6 t6 + stress:2d6 t6\n"
         "around    (Label) 1d20+5 ! comment    6 x 4d6k3    2d6 ; 3d8 (up to 4)\n"
+        "sets      (6 x 4d6) k3 keeps the 3 best rolls; (7 x 4d6k3) k6 drops the worst\n"
         "target    ... vs 15   pass if the total (or successes) reaches 15\n"
         "sets      5d10 sets   pairs, triples ...      d%% b2 / p1: bonus, penalty dice\n"
         "systems   atk adv + 5 vs 15   chk + 3   save dis + 2         (D&D 5e)\n"
@@ -385,7 +481,7 @@ static void cmd_notation(char *args)
         "          fate + 2 vs 3   vtm 7 h2 vs 3   dcc d20 +1d + 2 vs 15\n"
         "spaces    optional; capitals fine. After dice d1 means drop: +1d1 for a die\n"
         "shown as  5 kept  (5) dropped  ~2~ rerolled  !6 exploded  -7 subtracted\n"
-        "          8* success  10** double  1x failure  b botch\n"
+        "          8* success  10** double  1x failure  b botch  2->5 rerolled after\n"
         "'parse <roll>' shows how a roll is read without rolling it.\n");
 }
 
@@ -536,6 +632,8 @@ static const command_t commands[] = {
     { "tap",     "tap [seconds]: stir in your key timings",     cmd_tap     },
     { "roll",    "roll 4d6k3 (or just type 4d6k3)",             cmd_roll    },
     { "parse",   "parse <roll>: how it is read, without rolling", cmd_parse  },
+    { "last",    "the last roll, dice numbered for reroll",     cmd_last    },
+    { "reroll",  "reroll | reroll 2 5 | reroll !=6 | reroll best/worst", cmd_reroll },
     { "notation","what you can type in a roll",                 cmd_notation },
     { "pct",     "pct [b2|p1] [n]: d100, CoC bonus/penalty dice", cmd_pct   },
     { "custom",  "custom <rolls> 1 2 6*3 0/+ ...: your own die", cmd_custom  },

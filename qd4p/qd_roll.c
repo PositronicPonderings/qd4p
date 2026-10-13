@@ -336,6 +336,7 @@ const char *qd_err_text(qd_err_t e)
     case QD_ERR_SUM:           return "the sum doesn't add up";
     case QD_ERR_DIV_ZERO:      return "divide by zero";
     case QD_ERR_PERCENT:       return "percentile dice take bonus/penalty (up to 3) but no other modifiers";
+    case QD_ERR_REROLL:        return "that die can't be rerolled";
     }
     return "unknown error";
 }
@@ -455,6 +456,7 @@ static int add_record(const pool_ctx_t *c, int16_t value, uint16_t face, uint16_
     qd_die_result_t *d = &work[work_n];
     d->value = value;
     d->face = face;
+    d->was = 0;
     d->flags = flags;
     if (d->value == c->hi) d->flags |= QD_DIE_MAX;
     if (d->value == c->lo) d->flags |= QD_DIE_MIN;
@@ -464,12 +466,9 @@ static int add_record(const pool_ctx_t *c, int16_t value, uint16_t face, uint16_
     return work_n++;
 }
 
-static int add_die(const pool_ctx_t *c, uint16_t parent, uint16_t flags)
+/* One fresh value for a die of the pool: the only place dice are drawn. */
+static void draw(const qd_pool_t *p, qd_die_result_t *d)
 {
-    if (roll_n >= QD_MAX_ROLL_DICE)
-        return -1;
-    qd_die_result_t *d = &work[work_n];
-    const qd_pool_t *p = c->p;
     if (p->digits) {
         int v = 0;
         for (int i = 0; i < p->digits; i++)
@@ -484,6 +483,15 @@ static int add_die(const pool_ctx_t *c, uint16_t parent, uint16_t flags)
         d->face = (uint16_t)qd_rng_range(p->sides);
         d->value = (int16_t)(d->face + 1);
     }
+}
+
+static int add_die(const pool_ctx_t *c, uint16_t parent, uint16_t flags)
+{
+    if (roll_n >= QD_MAX_ROLL_DICE)
+        return -1;
+    qd_die_result_t *d = &work[work_n];
+    draw(c->p, d);
+    d->was = 0;
     d->flags = flags;
     if (d->value == c->hi) d->flags |= QD_DIE_MAX;
     if (d->value == c->lo) d->flags |= QD_DIE_MIN;
@@ -585,6 +593,8 @@ static void run_step(const pool_ctx_t *c, const qd_step_t *s, qd_result_t *res)
     }
 }
 
+static void finish_pool(const qd_roll_t *r, const pool_ctx_t *cp, qd_result_t *res, bool list);
+
 static void run_pool(const qd_roll_t *r, uint8_t index, qd_result_t *res)
 {
     const qd_pool_t *p = &r->pools[index];
@@ -623,6 +633,20 @@ static void run_pool(const qd_roll_t *r, uint8_t index, qd_result_t *res)
     /* 2. Explode, implode, reroll. */
     for (int s = 0; s < p->step_count; s++)
         run_step(&c, &p->steps[s], res);
+
+    pr->rolled = work_n;
+    finish_pool(r, &c, res, true);
+}
+
+/* Stages 3, 4 and 6 for the pool in `work`: keep or drop, totals,
+ * counting, sets, buckets. Run once after rolling (list = true: the dice
+ * are then copied into the result) and again after a reroll (list =
+ * false: they go back where they came from). */
+static void finish_pool(const qd_roll_t *r, const pool_ctx_t *cp, qd_result_t *res, bool list)
+{
+    const qd_pool_t *p = cp->p;
+    pool_ctx_t c = *cp;
+    qd_pool_result_t *pr = &res->pools[c.index];
 
     /* 3. Keep or drop (no need to sort if there's nothing to keep or drop). */
     int live = p->keep == QD_KEEP_ALL ? 0 : sort_in_play();
@@ -663,13 +687,13 @@ static void run_pool(const qd_roll_t *r, uint8_t index, qd_result_t *res)
     }
 
     /* 4 and 6. Totals and counting over the kept dice. */
-    pr->rolled = work_n;
     pr->face_counts = !p->digits && face_total(p) <= QD_MAX_FACES;
     bool first = true;
     for (uint16_t i = 0; i < work_n; i++) {
         qd_die_result_t *d = &work[i];
         if (d->flags & QD_DIE_IMPLODED) {
-            pr->total -= d->value;
+            if (!(d->flags & QD_DIE_REROLLED))     /* its die was rerolled: gone */
+                pr->total -= d->value;
             continue;
         }
         if (d->flags & QD_DIE_OUT)
@@ -711,6 +735,11 @@ static void run_pool(const qd_roll_t *r, uint8_t index, qd_result_t *res)
     res->successes += (int16_t)(pr->successes - pr->failures);
     res->failures += pr->failures;
     res->botches += pr->botches;
+
+    if (!list) {                                   /* after a reroll: put them back */
+        memcpy(&res->dice[pr->first], work, pr->listed * sizeof(work[0]));
+        return;
+    }
 
     /* List as many dice as there is room for. */
     pr->first = res->dice_count;
@@ -804,4 +833,165 @@ qd_err_t qd_roll_run(const qd_roll_t *r, qd_result_t *res)
     res->rolled = roll_n;
     res->total = run_sum(r, res);
     return QD_OK;
+}
+
+/* ========================================================================
+ * Rerolls after the fact
+ * ======================================================================== */
+
+/* Work every pool out again from the dice in the result, then the sum. */
+static void recompute(const qd_roll_t *r, qd_result_t *res)
+{
+    const uint16_t derived = QD_DIE_DROPPED | QD_DIE_SUCCESS | QD_DIE_TWICE | QD_DIE_FAILURE |
+                             QD_DIE_BOTCH;
+    res->successes = res->failures = res->botches = 0;
+    memset(res->buckets, 0, sizeof(res->buckets));
+    res->flags &= (uint16_t)~QD_RES_COUNTING;
+    for (uint8_t k = 0; k < r->pool_count; k++) {
+        qd_pool_result_t *pr = &res->pools[k];
+        pool_ctx_t c = { &r->pools[k], k, 0, 0 };
+        qd_pool_range(c.p, &c.lo, &c.hi);
+        work_n = pr->listed;
+        memcpy(work, &res->dice[pr->first], work_n * sizeof(work[0]));
+        for (uint16_t i = 0; i < work_n; i++)
+            work[i].flags &= (uint16_t)~derived;
+        pr->total = 0;
+        pr->kept = 0;
+        pr->min = pr->max = 0;
+        pr->successes = pr->failures = pr->botches = 0;
+        pr->set_count = 0;
+        memset(pr->face_count, 0, sizeof(pr->face_count));
+        finish_pool(r, &c, res, false);
+    }
+    res->total = run_sum(r, res);
+}
+
+/* Note the result as it was, before a reroll changes it. */
+static void remember(qd_result_t *res)
+{
+    res->was_total = res->total;
+    res->was_successes = res->successes;
+    res->flags |= QD_RES_REROLLED;
+    if (res->rerolls < 255) res->rerolls++;
+}
+
+qd_err_t qd_reroll_all(const qd_roll_t *r, qd_result_t *res)
+{
+    int32_t was = res->total;
+    int16_t was_s = res->successes;
+    uint8_t n = res->rerolls;
+    qd_err_t e = qd_roll_run(r, res);
+    if (e)
+        return e;
+    res->was_total = was;
+    res->was_successes = was_s;
+    res->rerolls = (uint8_t)(n < 255 ? n + 1 : n);
+    res->flags |= QD_RES_REROLLED;
+    return QD_OK;
+}
+
+/* Which pool a listed die belongs to, and its index within that pool. */
+static bool locate(const qd_result_t *res, uint16_t i, uint8_t *pool, uint16_t *local)
+{
+    if (i >= res->dice_count)
+        return false;
+    *pool = res->dice[i].pool;
+    *local = (uint16_t)(i - res->pools[*pool].first);
+    return true;
+}
+
+qd_err_t qd_reroll_dice(const qd_roll_t *r, qd_result_t *res, const uint16_t *which, int n)
+{
+    if (res->flags & QD_RES_SUMMARY)
+        return QD_ERR_REROLL;
+    /* Check them all first, so a bad index changes nothing. */
+    const uint16_t gone = QD_DIE_SET_ASIDE | QD_DIE_REROLLED | QD_DIE_IMPLODED;
+    for (int k = 0; k < n; k++) {
+        uint8_t pool;
+        uint16_t local;
+        if (!locate(res, which[k], &pool, &local) || (res->dice[which[k]].flags & gone) ||
+            r->pools[pool].percentile)
+            return QD_ERR_REROLL;
+    }
+    remember(res);
+    for (int k = 0; k < n; k++) {
+        qd_die_result_t *d = &res->dice[which[k]];
+        const qd_pool_t *p = &r->pools[d->pool];
+        pool_ctx_t c = { p, d->pool, 0, 0 };
+        qd_pool_range(p, &c.lo, &c.hi);
+        if (!(d->flags & QD_DIE_CHANGED)) {
+            d->was = d->value;
+            d->flags |= QD_DIE_CHANGED;
+        }
+        draw(p, d);
+        d->flags &= (uint16_t)~(QD_DIE_MAX | QD_DIE_MIN);
+        if (d->value == c.hi) d->flags |= QD_DIE_MAX;
+        if (d->value == c.lo) d->flags |= QD_DIE_MIN;
+
+        /* Dice that came from this one (explosions, implosions, and theirs)
+         * are set aside: the roll that made them is gone. */
+        const qd_pool_result_t *pr = &res->pools[d->pool];
+        uint16_t self = (uint16_t)(which[k] - pr->first);
+        bool changed = true;
+        while (changed) {
+            changed = false;
+            for (uint16_t i = 0; i < pr->listed; i++) {
+                qd_die_result_t *e = &res->dice[pr->first + i];
+                if (e->parent == QD_NO_PARENT || (e->flags & QD_DIE_REROLLED) ||
+                    !(e->flags & (QD_DIE_EXPLODED | QD_DIE_IMPLODED)))
+                    continue;
+                const qd_die_result_t *parent = &res->dice[pr->first + e->parent];
+                if (e->parent == self || (parent->flags & QD_DIE_REROLLED && parent != d)) {
+                    e->flags |= QD_DIE_REROLLED;
+                    changed = true;
+                }
+            }
+        }
+    }
+    recompute(r, res);
+    return QD_OK;
+}
+
+int qd_reroll_matching(const qd_roll_t *r, qd_result_t *res, int pool, qd_test_t t)
+{
+    static uint16_t which[QD_MAX_KEPT_DICE];
+    int n = 0;
+    for (uint16_t i = 0; i < res->dice_count; i++) {
+        const qd_die_result_t *d = &res->dice[i];
+        if ((pool >= 0 && d->pool != pool) || (d->flags & QD_DIE_OUT) || r->pools[d->pool].percentile)
+            continue;
+        pool_ctx_t c = { &r->pools[d->pool], d->pool, 0, 0 };
+        qd_pool_range(c.p, &c.lo, &c.hi);
+        if (matches(&c, &t, d))
+            which[n++] = i;
+    }
+    if (!n)
+        return 0;
+    return qd_reroll_dice(r, res, which, n) == QD_OK ? n : -1;
+}
+
+bool qd_reroll_keep(const qd_roll_t *r, qd_result_t *res, bool higher)
+{
+    static qd_result_t again;
+    if (qd_roll_run(r, &again) != QD_OK)
+        return false;
+    bool counting = (res->flags & QD_RES_COUNTING) != 0;
+    int32_t old_v = counting ? res->successes : res->total;
+    int32_t new_v = counting ? again.successes : again.total;
+    bool take_new = higher ? new_v >= old_v : new_v <= old_v;
+    uint8_t n = res->rerolls;
+    if (take_new) {
+        int32_t was = res->total;
+        int16_t was_s = res->successes;
+        *res = again;
+        res->was_total = was;
+        res->was_successes = was_s;
+    } else {
+        res->was_total = again.total;
+        res->was_successes = again.successes;
+        res->flags |= QD_RES_KEPT_FIRST;
+    }
+    res->flags |= QD_RES_REROLLED;
+    res->rerolls = (uint8_t)(n < 255 ? n + 1 : n);
+    return take_new;
 }

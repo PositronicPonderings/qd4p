@@ -27,6 +27,8 @@
  *     [<3, =6, ="+", 3-5]                        buckets
  *     base: stress:                              group names
  *     (Label)   ! comment   6 x roll   roll ; roll
+ *     (6 x 4d6) k3   (7 x 4d6k3) k6             a set: keep or drop whole rolls
+ *     6 x 4d6k3                                  x binds loosest: six rolls of 4d6k3
  *
  * Spaces are optional and case doesn't matter: "4D6K3" is "4d6 k3".
  * After dice, "d1" means "drop the lowest 1": write "+1d1" for a die.
@@ -51,7 +53,23 @@ typedef struct {
     char      label[QD_MAX_ROLL_LABEL + 1];     /**< "(Bite) 1d20+5": "Bite" */
     char      comment[QD_MAX_COMMENT + 1];      /**< "1d20 ! flanking": "flanking" */
     char      die_names[QD_MAX_POOLS][QD_MAX_DIE_NAME + 1];  /**< d{name} per pool, "" if none */
+    bool      set;                              /**< "(6 x 4d6) k3": the repeats are a set */
+    uint8_t   set_keep;                         /**< qd_keep_t applied to the set's rolls */
+    uint16_t  set_keep_n;
 } qd_parsed_t;
+
+/** A roll set: every repeat's value (its total, or its successes if it
+ *  counts them) and which were kept. */
+typedef struct {
+    uint8_t  count;                             /**< repeats rolled */
+    bool     counting;                          /**< values are successes */
+    int32_t  total;                             /**< sum of the kept values */
+    int32_t  value[QD_MAX_REPEAT];
+    bool     kept[QD_MAX_REPEAT];
+} qd_set_result_t;
+
+/** Called with each repeat's full result as it is rolled (index from 0). */
+typedef void (*qd_set_each_t)(int index, const qd_result_t *res, void *ctx);
 
 /** Where and what the problem is. pos counts from 0, so show pos + 1 as a
  *  column. len is how many characters to underline (at least 1). */
@@ -75,6 +93,12 @@ bool qd_parse(const char *text, qd_parsed_t *out, qd_parse_error_t *err);
 /** Parse up to `max` rolls separated by ';' ("2d6 ; 3d8 ; 1d20").
  *  Returns how many, or -1 with `err` filled in. */
 int qd_parse_line(const char *text, qd_parsed_t *out, int max, qd_parse_error_t *err);
+
+/** Roll every repeat of a parsed roll ("6 x 4d6k3": six; a plain roll:
+ *  one), then apply the set's keep or drop ("(7 x 4d6k3) k6": the best
+ *  six). Ties: as for dice, "lowest" is the earliest and "highest" the
+ *  latest. `each` may be NULL. */
+qd_err_t qd_set_run(const qd_parsed_t *p, qd_set_result_t *out, qd_set_each_t each, void *ctx);
 
 /** Write a parsed roll back as tidy notation ("(Bite) 1d20 + 5 ! note").
  *  Parsing what it writes gives the same roll. Returns the length. */

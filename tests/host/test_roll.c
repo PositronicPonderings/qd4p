@@ -217,7 +217,7 @@ static void test_errors(void)
     for (int i = 0; i < QD_MAX_POOL_STEPS; i++) qd_pool_reroll(p, qd_test_eq(1), false);
     CHECK(!qd_pool_reroll(p, qd_test_eq(1), false), "%d steps per pool", QD_MAX_POOL_STEPS);
 
-    for (int e = 0; e <= QD_ERR_PERCENT; e++)
+    for (int e = 0; e <= QD_ERR_REROLL; e++)
         CHECK(strlen(qd_err_text((qd_err_t)e)) > 1, "error %d has a message", e);
 }
 

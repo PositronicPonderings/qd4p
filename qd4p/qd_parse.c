@@ -843,12 +843,10 @@ static bool try_label(ps_t *ps, bool *done)
     return true;
 }
 
-static bool roll(ps_t *ps)
+/* Everything inside a roll (or inside a set's brackets), up to ps->end. */
+static bool body(ps_t *ps)
 {
     qd_parsed_t *out = ps->out;
-    memset(out, 0, sizeof(*out));
-    qd_roll_init(&out->roll);
-    out->repeat = 1;
     int start = ps->i;
 
     for (;;) {                                          /* repeat and label, either order */
@@ -927,6 +925,142 @@ static bool roll(ps_t *ps)
     if (e)
         return fail(ps, start, ps->end - start, "%s", qd_err_text(e));
     return true;
+}
+
+/* "(6 x ..." here? Then *close is its matching ')'. */
+static bool set_here(ps_t *ps, int *close)
+{
+    if (peek(ps) != '(')
+        return false;
+    int j = ps->i + 1;
+    while (at(ps, j) == ' ') j++;
+    if (at(ps, j) == '(') {                             /* "((Fire) 3 x 8d6) d1": a label first */
+        int k = j + 1;
+        while (at(ps, k) == ' ') k++;
+        if (!is_alpha(at(ps, k)))
+            return false;
+        while (k < ps->end && ps->s[k] != ')') k++;
+        j = k + 1;
+        while (at(ps, j) == ' ') j++;
+    }
+    if (!is_digit(at(ps, j)))
+        return false;
+    while (is_digit(at(ps, j))) j++;
+    while (at(ps, j) == ' ') j++;
+    if (lower(at(ps, j)) != 'x' || (is_alpha(at(ps, j + 1)) && lower(at(ps, j + 1)) != 'd'))
+        return false;
+    int depth = 0;
+    for (int k = ps->i; k < ps->end; k++) {
+        if (ps->s[k] == '(') depth++;
+        if (ps->s[k] == ')' && --depth == 0) {
+            *close = k;
+            return true;
+        }
+    }
+    *close = -1;
+    return true;
+}
+
+static bool roll(ps_t *ps)
+{
+    qd_parsed_t *out = ps->out;
+    memset(out, 0, sizeof(*out));
+    qd_roll_init(&out->roll);
+    out->repeat = 1;
+
+    bool labelled;
+    skip_space(ps);
+    if (!try_label(ps, &labelled))
+        return false;
+    skip_space(ps);
+    int open = ps->i, close;
+    if (!set_here(ps, &close))
+        return body(ps);
+
+    /* A set: "(6 x 4d6) k3". Read the inside as a roll of its own. */
+    if (close < 0)
+        return fail(ps, open, 1, "missing ')' for this set");
+    int end = ps->end;
+    ps->end = close;
+    ps->i = open + 1;
+    if (!body(ps))
+        return false;
+    ps->end = end;
+    ps->i = close + 1;
+    out->set = true;
+
+    skip_space(ps);
+    static const char *const words[] = { "kl", "km", "k", "dh", "d" };
+    static const qd_keep_t how[] = { QD_KEEP_LOW, QD_KEEP_MIDDLE, QD_KEEP_HIGH, QD_DROP_HIGH, QD_DROP_LOW };
+    if (is_alpha(peek(ps))) {
+        int at0 = ps->i, w = -1;
+        for (int k = 0; k < 5 && w < 0; k++)
+            if (looking_at(ps, words[k]) && !is_alpha(at(ps, ps->i + (int)strlen(words[k])))) w = k;
+        if (w < 0)
+            return fail(ps, at0, 1, "after a set: k, kl, km, d or dh (keep or drop whole rolls)");
+        ps->i += (int)strlen(words[w]);
+        long n = 1;
+        if (is_digit(peek(ps)) && !read_number(ps, &n))
+            return false;
+        if (n > out->repeat)
+            return fail(ps, at0, ps->i - at0, "the set has only %u rolls", out->repeat);
+        out->set_keep = (uint8_t)how[w];
+        out->set_keep_n = (uint16_t)n;
+    }
+    skip_space(ps);
+    if (peek(ps) == '!') {
+        int a = ps->i + 1, b = ps->end;
+        if (b - a > QD_MAX_COMMENT + 8) b = a + QD_MAX_COMMENT + 8;
+        while (a < b && ps->s[a] == ' ') a++;
+        if (b - a > QD_MAX_COMMENT) b = a + QD_MAX_COMMENT;
+        copy_trimmed(out->comment, sizeof(out->comment), ps->s, a, b);
+        ps->i = ps->end;
+    }
+    skip_space(ps);
+    if (peek(ps))
+        return fail(ps, ps->i, 1, "after a set: k, kl, km, d, dh, a comment or the end");
+    return true;
+}
+
+qd_err_t qd_set_run(const qd_parsed_t *p, qd_set_result_t *out, qd_set_each_t each, void *ctx)
+{
+    static qd_result_t res;
+    memset(out, 0, sizeof(*out));
+    int n = p->repeat < 1 ? 1 : p->repeat > QD_MAX_REPEAT ? QD_MAX_REPEAT : p->repeat;
+    for (int k = 0; k < n; k++) {
+        qd_err_t e = qd_roll_run(&p->roll, &res);
+        if (e)
+            return e;
+        out->counting = (res.flags & QD_RES_COUNTING) != 0;
+        out->value[k] = out->counting ? res.successes : res.total;
+        out->kept[k] = true;
+        if (each)
+            each(k, &res, ctx);
+    }
+    out->count = (uint8_t)n;
+
+    /* Keep or drop whole rolls: sort by value (stable), mark the ends. */
+    if (p->set && p->set_keep != QD_KEEP_ALL) {
+        int order[QD_MAX_REPEAT];
+        for (int k = 0; k < n; k++) {
+            int j = k;
+            while (j > 0 && out->value[order[j - 1]] > out->value[k]) { order[j] = order[j - 1]; j--; }
+            order[j] = k;
+        }
+        int m = p->set_keep_n > n ? n : p->set_keep_n, lo = 0, hi = 0;
+        switch (p->set_keep) {
+        case QD_KEEP_HIGH:   lo = n - m; break;
+        case QD_KEEP_LOW:    hi = n - m; break;
+        case QD_KEEP_MIDDLE: lo = (n - m) / 2; hi = n - m - lo; break;
+        case QD_DROP_LOW:    lo = m; break;
+        case QD_DROP_HIGH:   hi = m; break;
+        }
+        for (int k = 0; k < lo; k++) out->kept[order[k]] = false;
+        for (int k = 0; k < hi; k++) out->kept[order[n - 1 - k]] = false;
+    }
+    for (int k = 0; k < n; k++)
+        if (out->kept[k]) out->total += out->value[k];
+    return QD_OK;
 }
 
 int qd_parse_line(const char *text, qd_parsed_t *out, int max, qd_parse_error_t *err)
@@ -1116,13 +1250,10 @@ static void put_op(out_t *o, const qd_parsed_t *ps, const int *left, const int *
     if (rb) put(o, ")");
 }
 
-int qd_format(const qd_parsed_t *p, char *buf, int size)
+/* The sum, its target and its buckets. */
+static void put_body(out_t *o_, const qd_parsed_t *p)
 {
-    out_t o = { buf, size, 0 };
-    if (size > 0) buf[0] = '\0';
-    if (p->repeat > 1) put(&o, "%u x ", p->repeat);
-    if (p->label[0]) put(&o, "(%s) ", p->label);
-
+    out_t o = *o_;
     const qd_roll_t *r = &p->roll;
     int left[QD_MAX_ROLL_OPS], right[QD_MAX_ROLL_OPS], stack[QD_MAX_ROLL_OPS], top = 0;
     bool ok = r->op_count > 0;
@@ -1164,6 +1295,25 @@ int qd_format(const qd_parsed_t *p, char *buf, int size)
             put(&o, b ? ", %s" : "%s", t);
         }
         put(&o, "]");
+    }
+    *o_ = o;
+}
+
+int qd_format(const qd_parsed_t *p, char *buf, int size)
+{
+    out_t o = { buf, size, 0 };
+    if (size > 0) buf[0] = '\0';
+    if (p->set) {
+        static const char *const keep[] = { "", "k", "kl", "km", "d", "dh" };
+        if (p->label[0]) put(&o, "(%s) ", p->label);
+        put(&o, "(%u x ", p->repeat);
+        put_body(&o, p);
+        put(&o, ")");
+        if (p->set_keep != QD_KEEP_ALL) put(&o, " %s%u", keep[p->set_keep], p->set_keep_n);
+    } else {
+        if (p->repeat > 1) put(&o, "%u x ", p->repeat);
+        if (p->label[0]) put(&o, "(%s) ", p->label);
+        put_body(&o, p);
     }
     if (p->comment[0]) put(&o, " ! %s", p->comment);
     return o.len;

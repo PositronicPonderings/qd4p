@@ -48,7 +48,7 @@ extern "C" {
 /** Library version as numbers, for #if checks. */
 #define QD_VERSION_MAJOR 0
 #define QD_VERSION_MINOR 0
-#define QD_VERSION_PATCH 6
+#define QD_VERSION_PATCH 7
 
 /** Library version as text, e.g. "0.0.1". */
 const char *qd_version(void);

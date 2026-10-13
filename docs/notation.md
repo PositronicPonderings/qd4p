@@ -21,6 +21,8 @@ unchanged. Where the two differ, this page says so.
 - [Buckets](#buckets)
 - [Group names](#group-names)
 - [Labels, comments, repeats and several rolls](#labels-comments-repeats-and-several-rolls)
+- [Roll sets](#roll-sets)
+- [Rerolls after the roll](#rerolls-after-the-roll)
 - [Spaces, capitals and the d1 question](#spaces-capitals-and-the-d1-question)
 - [How results are shown](#how-results-are-shown)
 - [Targets: vs](#targets-vs)
@@ -63,6 +65,7 @@ unchanged. Where the two differ, this page says so.
 | Label | `(text)` | `(Bite) 1d20+5` | names the roll |
 | Comment | `! text` | `1d20 ! flanking` | a note shown with the result |
 | Repeat | `N x` | `6 x 4d6 k3` | roll it six times |
+| Set | `(N x roll) kN` | `(7 x 4d6k3) k6` | keep or drop whole rolls |
 | Several rolls | `;` | `2d6 ; 1d20` | up to four rolls on one line |
 | Target | `vs N` or `v N` | `1d20+5 vs 15` | pass if the total (or successes) reaches 15 |
 | Matching sets | `sets` | `5d10 sets` | report pairs, triples ... |
@@ -424,12 +427,16 @@ A bracket that starts with dice is maths, not a label: `(d6+1)*2` and
 ```
 
 **Repeat**: a number and `x` in front rolls the same thing that many times,
-1 to 20.
+1 to 20. `x` binds loosest of all: everything after it is the roll that
+is repeated, modifiers included.
 
 ```
-6 x 4d6 k3           six ability scores
+6 x 4d6 k3           six ability scores: six rolls of 4d6 k3
 3 x (Fire) 8d6       label and repeat go in either order
 ```
+
+To keep or drop whole rolls, put the repeat in brackets: see
+[roll sets](#roll-sets).
 
 **Several rolls**: `;` separates up to four rolls on one line. Each has its
 own label, comment and repeat.
@@ -438,6 +445,84 @@ own label, comment and repeat.
 2d6 ; 3d8 ; 1d20
 (Hit) 1d20+7 ; (Damage) 2d6+4
 ```
+
+## Roll sets
+
+Brackets around a repeat make its rolls a **set**, and a keep or drop
+after the brackets keeps or drops whole rolls, the way `k3` keeps dice.
+
+```
+(6 x 4d6) k3          six rolls of 4d6, keep the 3 best rolls
+(7 x 4d6 k3) k6       seven ability scores (each 4d6 k3), drop the worst
+(5 x 2d6) kl2         the 2 lowest of five
+(4 x sw8) dh1         four rolls, drop the best
+(Stats) (7 x 4d6k3) k6 ! classic array
+```
+
+Compare, following the order of operations:
+
+| Write | Means |
+| --- | --- |
+| `6 x 4d6 k3` | six rolls, each of them 4d6 keep 3 (the k3 is part of the roll) |
+| `(6 x 4d6) k3` | six rolls of 4d6, keep the 3 best rolls (the k3 is for the set) |
+| `(6 x 4d6 k3) k3` | six rolls of 4d6 k3, keep the 3 best of those |
+
+- After the brackets: `kN`, `klN`, `kmN`, `dN` or `dhN` (the number may be
+  left out for 1), then optionally a comment. Nothing else: no maths, no
+  more dice.
+- Each roll is judged by its total, or by its successes when it counts
+  them (`(5 x 6d10 t8) k3` keeps the three with most successes).
+- The set's result is the sum of the kept rolls. Every roll is still
+  shown, dropped ones in brackets: `set: (12) 14 16 (12) 20 (11)  = 50`.
+- Ties work as for dice: the lowest is the earliest rolled, the highest the
+  latest.
+- The inside of the brackets is a whole roll: a label, a game system and
+  `vs` all work there, and each roll gets its own outcome
+  (`(3 x atk + 5 vs 15)`).
+- A set can't be repeated again: `3 x (6 x 4d6) k3` is an error.
+- In C: `qd_set_run(&parsed, &set_result, each, ctx)` rolls them all,
+  calling `each` with every roll's full result, then fills in `value[]`,
+  `kept[]` and `total`.
+
+## Rerolls after the roll
+
+Bennies, pushes, willpower and luck all reroll something that has already
+been rolled. These are not notation (they happen afterwards, at the
+table), so they are functions in C and commands in the console. Every one
+keeps the history: the result is marked as rerolled, counts how often, and
+remembers the total before; a die rerolled on its own keeps its first
+value too.
+
+| What | Console | C | For |
+| --- | --- | --- | --- |
+| The whole roll | `reroll` | `qd_reroll_all` | Savage Worlds benny, CoC push |
+| Chosen dice | `reroll 2 5` | `qd_reroll_dice` | Vampire willpower, Blades |
+| Dice passing a test | `reroll !=6` | `qd_reroll_matching` | Year Zero push |
+| Better or worse of two | `reroll best`, `reroll worst` | `qd_reroll_keep` | luck, Lucky, fortune |
+
+- **Choosing dice**: the console's `last` command shows the last roll with
+  every die numbered (`#1 6* #2 3 #3 1 ...`); `reroll 2 3` rerolls #2 and
+  #3. In C, pass indexes into `res.dice`.
+- **A test** is written like a [bucket](#buckets): `reroll !=6`,
+  `reroll <3`, `reroll =1`. Every die still in play that passes is
+  rerolled.
+- After a reroll, the pool is worked out again from the new dice: keep and
+  drop, successes, sets, buckets, the sum. The game's outcome is judged
+  again (call `qd_sys_outcome` afterwards in C).
+- A rerolled die doesn't explode again, and any dice that came from it
+  (its explosions and implosions) are set aside with it.
+- Dice that can't be rerolled: set-aside, already-replaced and imploded
+  dice, percentile dice (reroll the whole roll instead), and dice past the
+  first 100 in summary mode. A request with any of them changes nothing.
+- The console shows a rerolled die as old->new: `3->6*`. In C it is
+  flagged `QD_DIE_CHANGED`, with its first value in `was`.
+- **Better or worse of two** rolls once more and keeps the better (or
+  worse) result: the total, or the successes for a success roll. A tie
+  keeps the new roll. `was_total` holds the other roll's total, and
+  `QD_RES_KEPT_FIRST` says the first was kept.
+- Which dice a game lets you reroll (no Hunger dice for willpower, no 1s
+  on stress dice in a push) is the app's choice; QD4P rerolls what it is
+  given.
 
 ## Spaces, capitals and the d1 question
 
@@ -470,6 +555,7 @@ The console (and, in their own style, apps) shows every die:
 | `b` | a botch |
 | `[+]` | a labelled face |
 | `(cap)` | an explosion or reroll chain hit its limit here |
+| `3->6` | rerolled after the roll: was 3, now 6 |
 
 Over 100 dice, a roll switches to **summary mode**: the first 100 dice are
 listed and every total, count and bucket stays exact. Face counts are kept
@@ -749,6 +835,9 @@ wrong. The console underlines it:
 | p (penalty dice) is for d% | `2d6 p1` |
 | d% takes b and p … | `d% e` |
 | sets takes no number | `5d10 sets2` |
+| the set has only N rolls | `(6x4d6)k7` |
+| after a set: k, kl, km, d or dh | `(6x4d6) t3` |
+| missing ')' for this set | `(6x4d6` |
 
 ## Warnings
 
@@ -776,7 +865,7 @@ All are compile-time settings in `qd4p/qd_config.h`.
 | Numbers, dice and signs in one roll's sum | 24 |
 | Buckets | 8 |
 | Brackets inside brackets | 8 |
-| Repeats (`N x`) | 20 |
+| Repeats (`N x`), and rolls in a set | 20 |
 | Rolls on one line (`;`) | 4 |
 | Label / comment / group name / custom die name | 23 / 47 / 7 / 15 characters |
 
@@ -787,7 +876,8 @@ All are compile-time settings in `qd4p/qd_config.h`.
   `atk`/`chk`/`save`, `dcc d20 +1d`. Dice Maiden's other aliases (`4cod`,
   `ex5` …) are written out in plain notation (see the recipes).
 - `vs N` is QD4P's own.
-- Roll sets are written `6 x 4d6 k3` (Dice Maiden: `6 4d6 k3`).
+- Repeats are written `6 x 4d6 k3` (Dice Maiden: `6 4d6 k3`), and sets
+  that keep or drop whole rolls are `(6 x 4d6) k3`.
 - Buckets (`[<3, =6]`), group names (`base:`), custom dice (`d{name}`) and
   digit dice are QD4P's own.
 - Maths uses the usual precedence and allows brackets anywhere.
@@ -800,7 +890,10 @@ For the curious, and for anyone writing a compatible parser:
 
 ```
 line     = roll { ";" roll }
-roll     = { repeat | label } ( system tail | sum ) [ ( "vs" | "v" ) target ] [ buckets ] [ "!" comment ]
+roll     = [ label ] "(" inside ")" [ setkeep ] [ "!" comment ]     a set
+         | inside                                                   anything else
+inside   = { repeat | label } ( system tail | sum ) [ ( "vs" | "v" ) target ] [ buckets ] [ "!" comment ]
+setkeep  = ( "k" | "kl" | "km" | "d" | "dh" ) [ NUMBER ]          (the set needs a repeat)
 system   = ( "atk" | "chk" | "check" | "save" | "sav" ) { "adv" | "dis" | "d20" | "1d20" }
          | "sw" NUMBER [ "x" ] | "coc" NUMBER { ( "b" | "p" ) [ NUMBER ] }
          | "fate" | "vtm" NUMBER [ "h" NUMBER ] | "dcc" [ NUMBER ] "d" NUMBER { ( "+" | "-" ) [ NUMBER ] "d" }

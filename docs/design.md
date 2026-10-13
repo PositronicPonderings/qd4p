@@ -225,9 +225,13 @@ reports matching dice.
 
 ## Extras
 
-- **Rerolls:** `qd_reroll(&result, which)` rerolls chosen dice and recomputes;
-  the original is kept. Bennies, pushes, luck.
-- **Roll sets:** named lists of rolls with optional rules (`6 x 4d6k3`).
+- **Rerolls (D6):** the whole roll, chosen dice, dice passing a test, or
+  the better/worse of two; the result keeps the history (`was_total`, each
+  die's `was`, `QD_DIE_CHANGED`) and is worked out again. Rerolled dice
+  don't explode again.
+- **Roll sets (D6):** `6 x 4d6k3` repeats (x binds loosest);
+  `(6 x 4d6) k3` keeps or drops whole rolls (decided with the user: the
+  brackets make the set, order of operations otherwise).
 - **Random tables:** a die expression plus ranged entries, nesting to a depth
   cap. Text files converted into an asset pack on the PC (decided for v1);
   QD4P only needs a pointer to the table bytes.
@@ -260,7 +264,8 @@ reports matching dice.
    use. Done: `qd_roll.h`.
 5. **D4 Parser.** Done: `qd_parse.h`, [notation.md](notation.md).
 6. **D5 Outcomes and systems.** Done: `qd_sys.h`.
-7. **D6 Rerolls and roll sets.**
+7. **D6 Rerolls and roll sets.** Done: `qd_reroll_*` in `qd_roll.h`,
+   `qd_set_run` and `(N x roll) kN` in `qd_parse.h`.
 8. **D7 Stats for nerds and odds.**
 9. **D8 Random tables.**
 10. **D9 Fair mode.**

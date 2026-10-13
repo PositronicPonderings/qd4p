@@ -297,6 +297,7 @@ enum {
     QD_DIE_FAILURE   = 1 << 10,
     QD_DIE_BOTCH     = 1 << 11,
     QD_DIE_CAPPED    = 1 << 12,         /**< its chain hit QD_MAX_EXPLOSIONS */
+    QD_DIE_CHANGED   = 1 << 13,         /**< rerolled after the fact: `was` holds the old value */
 };
 
 /** Dice not in play: they don't count toward the total, successes or buckets. */
@@ -313,6 +314,7 @@ typedef struct {
                                              exploded, imploded or was rerolled
                                              into this one; QD_NO_PARENT if none */
     uint8_t  pool;
+    int16_t  was;                       /**< QD_DIE_CHANGED: the value it first rolled */
 } qd_die_result_t;
 
 /** One pool's share of a result. */
@@ -339,6 +341,8 @@ enum {
     QD_RES_DIV_ZERO = 1 << 2,           /**< divided by zero; that step gave 0 */
     QD_RES_CLAMPED  = 1 << 3,           /**< the total didn't fit in 32 bits */
     QD_RES_COUNTING = 1 << 4,           /**< some pool counts successes: show those */
+    QD_RES_REROLLED = 1 << 5,           /**< rerolled after the fact: see was_total */
+    QD_RES_KEPT_FIRST = 1 << 6,         /**< better/worse of two: the first roll was kept */
 };
 
 typedef struct {
@@ -348,6 +352,10 @@ typedef struct {
     uint16_t flags;                     /**< QD_RES_* */
     uint16_t warnings;                  /**< QD_WARN_*: rolled, but worth a note */
     uint16_t rolled;                    /**< every die rolled */
+    uint8_t  rerolls;                   /**< times rerolled after the fact */
+    int32_t  was_total;                 /**< QD_RES_REROLLED: the total before the last reroll
+                                             (better/worse of two: the other roll's total) */
+    int16_t  was_successes;             /**< ... and its successes */
     uint8_t  pool_count;
     qd_pool_result_t pools[QD_MAX_POOLS];
     uint8_t  bucket_count;
@@ -373,6 +381,7 @@ typedef enum {
     QD_ERR_SUM,                         /**< the sum program doesn't add up */
     QD_ERR_DIV_ZERO,                    /**< divide by the number 0 */
     QD_ERR_PERCENT,                     /**< percentile dice with steps or advantage, or > 3 bonus */
+    QD_ERR_REROLL,                      /**< can't reroll that die (not in play, unlisted, d%) */
 } qd_err_t;
 
 /** A short description of an error, for showing to a person. */
@@ -389,6 +398,40 @@ qd_err_t qd_roll_check(const qd_roll_t *r);
 
 /** Roll it. On an error `res` is cleared and nothing is rolled. */
 qd_err_t qd_roll_run(const qd_roll_t *r, qd_result_t *res);
+
+/* --- Rerolls after the fact ----------------------------------------------
+ * Bennies, pushes, willpower, luck. Each keeps the history: a rerolled
+ * result has QD_RES_REROLLED, `rerolls` counts how often, and `was_total`
+ * / `was_successes` hold the result before the last reroll. A die rerolled
+ * on its own keeps its first value in `was` and is flagged QD_DIE_CHANGED.
+ *
+ * Rerolling chosen or matching dice gives each one a fresh roll, then
+ * works the pool out again (keep/drop, counting, sets, buckets, the sum).
+ * A rerolled die does not explode again, and any dice that came from it
+ * (explosions, implosions) are set aside. Call qd_sys_outcome again
+ * afterwards for the game's reading.
+ */
+
+/** Roll the whole thing again (Savage Worlds benny, CoC push). `res`
+ *  holds the previous result and is replaced, keeping the history. */
+qd_err_t qd_reroll_all(const qd_roll_t *r, qd_result_t *res);
+
+/** Reroll chosen dice (Vampire willpower). `which` are indexes into
+ *  res->dice. Each must be in play or dropped, listed, and not percentile.
+ *  Nothing changes if any can't be rerolled. */
+qd_err_t qd_reroll_dice(const qd_roll_t *r, qd_result_t *res, const uint16_t *which, int n);
+
+/** Reroll every die in play that passes `t` (Year Zero push: qd_test_ne(6)).
+ *  pool -1 means every pool. Returns how many were rerolled (0 or more),
+ *  or -1 on an error. */
+int qd_reroll_matching(const qd_roll_t *r, qd_result_t *res, int pool, qd_test_t t);
+
+/** Roll again and keep the better (higher = true) or worse of the two:
+ *  luck, Lucky, fortune. Counting rolls compare successes, others the
+ *  total; a tie keeps the new roll. Returns true if the new roll was kept;
+ *  if not, QD_RES_KEPT_FIRST is set. Either way was_total is the other
+ *  roll's total. */
+bool qd_reroll_keep(const qd_roll_t *r, qd_result_t *res, bool higher);
 
 /** The lowest and highest single value a pool's die can show. */
 void qd_pool_range(const qd_pool_t *p, int16_t *lo, int16_t *hi);

@@ -169,3 +169,23 @@ The PC tests check every system against probabilities worked out exactly
 levels with 0-2 bonus or penalty dice; Vampire criticals and messy
 criticals; D&D advantage crits 9.75%) and re-check each outcome against
 the dice it came from.
+
+## D6 Rerolls and roll sets
+
+1. **Repeat vs set.** `6 x 4d6k3` rolls six 4d6-keep-3 and ends with a
+   `set:` line keeping all six. `(6 x 4d6) k3` rolls six plain 4d6 and the
+   `set:` line shows the three lowest in brackets, the total the sum of
+   the other three. `(Stats) (7 x 4d6k3) k6` drops exactly one, the lowest.
+2. **Whole roll.** `4d6 k3`, then `reroll`: a new roll, and
+   "(rerolled 1 time; before: total N)" with the old total.
+3. **Chosen dice.** `6d6 t6`, `last` (the dice numbered #1-#6), then
+   `reroll 2 3`: those two show old->new (`3->5`), the rest unchanged, and
+   successes counted again.
+4. **Year Zero push.** `6d6 t6`, then `reroll !=6`: every die that wasn't a
+   6 shows old->new, the 6s stay, "N dice rerolled".
+5. **Willpower.** `vtm 6 h2 vs 3`, `last`, then `reroll 1 2 3` (regular
+   dice): the outcome line is judged again.
+6. **Luck.** `1d20`, then `reroll best` (or `worst`): "rolled A and B:
+   kept the ..." and the kept roll shown.
+7. **Refusals.** `reroll 99` says the die can't be rerolled; `(6x4d6)k7`
+   says the set has only 6 rolls.
