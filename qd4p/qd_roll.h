@@ -161,6 +161,9 @@ typedef struct {
     uint8_t   keep;                     /**< a qd_keep_t */
     uint16_t  keep_n;
     qd_test_t success, twice, failure, botch;   /**< counting; op NONE = off */
+    bool      percentile;               /**< d%: a units d10 and tens d10s, 1..100 */
+    int8_t    pct_bonus;                /**< percentile: + bonus / - penalty tens dice (max 3) */
+    bool      sets;                     /**< report matching sets (pairs, triples...) */
     bool      hidden;                   /**< DM-only: apps hide it from players */
     char      name[QD_MAX_NAME + 1];    /**< group name, "" if none ("base", "stress") */
 } qd_pool_t;
@@ -199,6 +202,7 @@ typedef enum {
     QD_OP_NUMBER,                       /**< push arg */
     QD_OP_ADD, QD_OP_SUB, QD_OP_MUL, QD_OP_DIV,
     QD_OP_NEG,                          /**< negate the top */
+    QD_OP_MAX,                          /**< the larger of the top two (Savage Worlds) */
 } qd_op_kind_t;
 
 typedef struct {
@@ -212,6 +216,17 @@ typedef struct {
     qd_test_t test;
 } qd_bucket_t;
 
+/** A target ("vs 15") and, for a game-system shortcut, what it was. The
+ *  engine only stores this; qd_sys.h reads it to judge the result. */
+typedef struct {
+    uint8_t  id;                        /**< QD_SYS_* from qd_sys.h; 0 = plain notation */
+    uint8_t  kind;                      /**< system's own variant (D&D: attack/check/save) */
+    bool     has_target;                /**< "vs N" given */
+    int32_t  target;                    /**< N (CoC: the difficulty level) */
+    int16_t  a, b, c;                   /**< system numbers, see qd_sys.h */
+    uint8_t  ops;                       /**< sum steps the shortcut itself made */
+} qd_system_t;
+
 typedef struct {
     uint8_t     pool_count;
     qd_pool_t   pools[QD_MAX_POOLS];
@@ -219,6 +234,7 @@ typedef struct {
     qd_op_t     ops[QD_MAX_ROLL_OPS];
     uint8_t     bucket_count;
     qd_bucket_t buckets[QD_MAX_BUCKETS];
+    qd_system_t sys;                    /**< target and game system, if any */
     uint8_t     error;                  /**< set by a builder that ran out of room */
 } qd_roll_t;
 
@@ -233,6 +249,13 @@ qd_pool_t *qd_roll_dice_minus(qd_roll_t *r, uint16_t count, uint16_t sides);
 
 /** Add N of a custom die (Fudge, loaded, labelled). The die must stay alive. */
 qd_pool_t *qd_roll_custom(qd_roll_t *r, uint16_t count, const qd_die_t *die);
+
+/** Add N percentile dice (d%): a units d10 and a tens d10, read 1..100.
+ *  `bonus` > 0 rolls that many extra tens dice and keeps the best (lowest)
+ *  result; < 0 penalty dice keep the worst. -3..+3 (Call of Cthulhu).
+ *  The tens dice not used are listed, set aside, as the results they
+ *  would have given. */
+qd_pool_t *qd_roll_percent(qd_roll_t *r, uint16_t count, int bonus);
 
 /** Add N digit dice: "66" is a tens d6 and a units d6 read as 11..66,
  *  "666" three d6 read as 111..666, "36" a d3 then a d6. Each digit's die
@@ -304,6 +327,8 @@ typedef struct {
     uint16_t listed;                    /**< how many of its dice are listed there */
     bool     face_counts;               /**< face_count is filled in (<= QD_MAX_FACES faces) */
     uint16_t face_count[QD_MAX_FACES];  /**< kept dice per face index */
+    uint8_t  set_count;                 /**< matching sets found (pool.sets) */
+    struct { int16_t value; uint16_t size; } sets[QD_MAX_SETS];  /**< biggest first */
 } qd_pool_result_t;
 
 /** Result flags. */
@@ -347,6 +372,7 @@ typedef enum {
     QD_ERR_FOREVER,                     /**< ie / ir that matches every face */
     QD_ERR_SUM,                         /**< the sum program doesn't add up */
     QD_ERR_DIV_ZERO,                    /**< divide by the number 0 */
+    QD_ERR_PERCENT,                     /**< percentile dice with steps or advantage, or > 3 bonus */
 } qd_err_t;
 
 /** A short description of an error, for showing to a person. */

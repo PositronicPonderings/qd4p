@@ -5,8 +5,10 @@ Dice, cards and game results for the Raspberry Pi Pico 2, in plain C. Roll
 odds?", and let the library work out raises, success levels and messy
 criticals so your program doesn't have to.
 
-Work in progress: randomness, dice and decks, the roll engine and the
-dice notation parser are done; game systems are next. The layers, each usable on its own:
+Work in progress: randomness, dice and decks, the roll engine, the dice
+notation parser and the game systems (D&D 5e, Savage Worlds, Call of
+Cthulhu 7e, FATE, Vampire 5e, DCC) are done; rerolls and roll sets are
+next. The layers, each usable on its own:
 
 | Layer | What it does |
 |---|---|

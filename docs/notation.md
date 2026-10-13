@@ -23,6 +23,9 @@ unchanged. Where the two differ, this page says so.
 - [Labels, comments, repeats and several rolls](#labels-comments-repeats-and-several-rolls)
 - [Spaces, capitals and the d1 question](#spaces-capitals-and-the-d1-question)
 - [How results are shown](#how-results-are-shown)
+- [Targets: vs](#targets-vs)
+- [Matching sets](#matching-sets)
+- [Game systems](#game-systems)
 - [Recipes for popular games](#recipes-for-popular-games)
 - [Errors](#errors)
 - [Warnings](#warnings)
@@ -61,6 +64,15 @@ unchanged. Where the two differ, this page says so.
 | Comment | `! text` | `1d20 ! flanking` | a note shown with the result |
 | Repeat | `N x` | `6 x 4d6 k3` | roll it six times |
 | Several rolls | `;` | `2d6 ; 1d20` | up to four rolls on one line |
+| Target | `vs N` | `1d20+5 vs 15` | pass if the total (or successes) reaches 15 |
+| Matching sets | `sets` | `5d10 sets` | report pairs, triples ... |
+| Bonus/penalty | `d% bN` `d% pN` | `d% b2` | Call of Cthulhu tens dice |
+| D&D 5e | `atk` `chk` `save` | `atk adv + 5 vs 15` | d20, nat 20/1 on attacks |
+| Savage Worlds | `swN` | `sw8 + 1` | trait + wild die, raises |
+| Call of Cthulhu | `coc N` | `coc 65 b1 vs hard` | success levels |
+| FATE | `fate` | `fate + 2 vs 3` | ladder, shifts |
+| Vampire 5e | `vtm N hN` | `vtm 7 h2 vs 3` | hunger, messy criticals |
+| DCC | `dcc dN` | `dcc d20 +1d + 2` | dice chain, crits, fumbles |
 
 ## The order things happen in
 
@@ -105,11 +117,24 @@ d20        one d20 (the 1 is optional)
 
 ### Percentile: `d%`
 
-The same as `d100`: 1 to 100, every number equally likely. `qd_format`
-writes it back as `1d100`.
+1 to 100, every number equally likely, rolled the way the table does it:
+a units d10 and a tens d10 (00 and 0 read as 100).
 
-Call of Cthulhu bonus and penalty dice (`d% b2`, `d% p1`) arrive with the
-CoC game system in D5; until then the console's `pct` command rolls them.
+**Bonus and penalty dice** (Call of Cthulhu): `bN` rolls N extra tens
+dice and keeps the best (lowest) result; `pN` rolls N extra and keeps the
+worst. They cancel one for one, and the most either way is 3.
+
+```
+d%          a d100
+d% b1       one bonus die: two tens dice, keep the lower result
+d% b2 p1    the same as b1
+3d% p2      three separate rolls, each with two penalty dice
+```
+
+The tens dice that weren't used are listed after the result, set aside,
+as the results they would have given: `29 (59) (49)` is a 29 kept, with
+59 and 49 the alternatives. On `d%`, `b` means bonus; on any other dice it
+counts botches. Percentile dice can't explode, reroll or take advantage.
 
 ### Fudge / FATE dice: `NdF`
 
@@ -450,11 +475,186 @@ Over 100 dice, a roll switches to **summary mode**: the first 100 dice are
 listed and every total, count and bucket stays exact. Face counts are kept
 for dice with up to 30 faces.
 
+## Targets: vs
+
+`vs N` at the end of a roll (before buckets and comments) judges it: pass
+if the result reaches N.
+
+```
+1d20 + 5 vs 15        pass on 15 or more
+6d10 t8 vs 3          a success roll: 3 or more successes
+2d6 - 4 vs -1         negative targets are fine
+```
+
+- For ordinary rolls the total is judged; when the roll counts successes,
+  the successes are.
+- The result says Pass or Fail and by how much ("by 3", "short by 2").
+- Each game system below gives `vs` its own meaning: an AC, a Target
+  Number, the opposition, a difficulty.
+
+## Matching sets
+
+`sets` after dice reports every group of equal kept dice: pairs, triples
+and more, biggest first (then highest). For games that read matches, like
+One-Roll Engine or Wildsea.
+
+```
+5d10 sets          e.g. 3x7 2x2: three 7s and two 2s
+10d6 k8 sets       only the kept dice are matched
+```
+
+Up to 8 sets are reported per set of dice.
+
+## Game systems
+
+A system shortcut goes at the start of a roll and stands for that game's
+dice. Most can be followed by ordinary maths (a skill, a bonus, more dice)
+and a target, and every one comes with the game's own reading of the
+result: raises, success levels, messy criticals and so on. In C,
+`qd_sys_outcome()` gives that reading; see `qd4p/qd_sys.h`.
+
+| System | Shortcut | Maths after it? | `vs` means |
+| --- | --- | --- | --- |
+| D&D 5e | `atk`, `chk` (or `check`), `save`, then `adv` / `dis` | yes | AC or DC |
+| Savage Worlds | `sw4` `sw6` `sw8` `sw10` `sw12`, then `x` for an Extra | yes | Target Number (default 4) |
+| Call of Cthulhu 7e | `coc SKILL`, then `bN` / `pN` | no | `regular`, `hard` or `extreme` |
+| FATE | `fate` | yes | the opposition |
+| Vampire 5e | `vtm POOL hHUNGER` | no | difficulty |
+| DCC | `dcc dN` or `dcc NdN`, then `+Nd` / `-Nd` chain steps | yes | DC or AC |
+
+### D&D 5th edition: `atk`, `chk`, `save`
+
+A d20, with advantage or disadvantage if you add `adv` or `dis` straight
+after the word.
+
+```
+atk + 7 vs 15            an attack against AC 15
+atk adv + 7 vs 15        with advantage
+chk + 3 vs 12            an ability check against DC 12
+save dis + 2 vs 14       a saving throw with disadvantage
+atk + 5 + 1d4 vs 15      blessed
+```
+
+- **Attacks**: a natural 20 always hits and is a **Critical hit**; a
+  natural 1 always misses. Otherwise the total against the AC: **Hit** or
+  **Miss**.
+- **Checks and saves**: the total against the DC: **Success** or
+  **Failure**. A natural 20 or 1 is noted but changes nothing (5e has no
+  automatic success on checks or saves).
+- Without `vs`, attacks still report a critical hit or a natural 1, and
+  checks and saves note a natural 20 or 1.
+- "Natural" is the d20 that counted: with advantage, the higher one.
+
+### Savage Worlds: `sw4` to `sw12`
+
+The trait die and a d6 Wild Die, both exploding ("acing") on their
+highest face; the better of the two counts. Add modifiers after.
+
+```
+sw8                 Fighting d8 against TN 4
+sw8 + 1 vs 6        +1, against a Parry of 6
+sw12 + 2            a d12+2 trait
+sw6 x               an Extra: no Wild Die
+```
+
+- Target Number 4 unless `vs` says otherwise.
+- **Success**, and a **raise** for every full 4 over the target:
+  "Success, 2 raises".
+- **Critical failure** ("snake eyes"): the trait die and the Wild Die
+  both come up 1 (only Wild Cards roll a Wild Die, so only they can).
+- Aces are counted and shown: "2 aces".
+- The dice are shown as `trait:` and `wild:`.
+
+### Call of Cthulhu 7th edition: `coc`
+
+Percentile dice under the skill, with bonus (`b`) and penalty (`p`) dice.
+
+```
+coc 65              Spot Hidden 65
+coc 65 b1           with a bonus die
+coc 40 p2           two penalty dice
+coc 50 vs hard      needs a Hard success
+```
+
+| Roll | Result |
+| --- | --- |
+| 01 | **Critical success** |
+| up to a fifth of the skill | **Extreme success** |
+| up to half the skill | **Hard success** |
+| up to the skill | **Regular success** |
+| over the skill | **Failure** |
+| 100, or 96-100 when the skill is under 50 | **Fumble** |
+
+- `vs regular` (the default), `vs hard` or `vs extreme` sets the
+  difficulty: a lower success counts as a failure ("Failure (Regular
+  success, Hard needed)"). A critical always succeeds; a fumble always
+  fails.
+- No maths after `coc`: the skill is the number that counts.
+- The detail line gives the thresholds: "skill 65: hard 32, extreme 13".
+
+### FATE: `fate`
+
+Four Fudge dice plus whatever follows.
+
+```
+fate + 2            a Fair skill
+fate + 3 vs 2       against Fair opposition
+```
+
+- Without `vs`, the total is read on the ladder: "Great (+4)". The ladder
+  runs Terrible (−2), Poor, Mediocre (0), Average, Fair, Good, Great,
+  Superb, Fantastic, Epic, Legendary (+8).
+- With `vs`, the difference is **shifts**: below 0 is a **Fail**, 0 a
+  **Tie**, 1-2 a **Success**, 3 or more **Success with style**.
+
+### Vampire: the Masquerade 5th edition: `vtm`
+
+A pool of d10s, some of them Hunger dice.
+
+```
+vtm 7 h2            seven dice, two of them Hunger dice
+vtm 7 h2 vs 3       against difficulty 3
+vtm 4               no Hunger
+```
+
+- Each 6 or more is a success. Each **pair of 10s** is a critical worth
+  4 successes instead of 2.
+- **Critical**: a pair of 10s. **Messy critical**: a critical with a 10
+  on a Hunger die.
+- **Bestial failure**: the roll fails and a Hunger die shows a 1. Without
+  `vs`, that means no successes; with Hunger 1s and some successes the
+  result warns "hunger 1s: bestial if it fails".
+- **Total failure**: no successes at all.
+- With `vs`, **Win** or **Failure**, and the margin.
+- Hunger is 0 to 5 and never more than the pool. The Hunger dice are shown
+  as `hunger:`.
+- No maths after `vtm`: the pool is the number that counts.
+
+### Dungeon Crawl Classics: `dcc`
+
+Any die on the dice chain, moved up or down it, then modifiers.
+
+```
+dcc d20 + 2 vs 12        a d20 attack
+dcc d20 +1d + 2          one step up the chain: a d24
+dcc d16 -2d              two steps down: a d12
+dcc 3d6 -1d              three dice, each a step down: 3d5
+dcc d20 +1d + 1d4        a step up, then an extra d4
+```
+
+- The chain: d3, d4, d5, d6, d7, d8, d10, d12, d14, d16, d20, d24, d30.
+  Steps stop at either end.
+- `+1d` (a sign, a number, and a `d` with nothing after it) is a chain
+  step; `+1d4` is an ordinary extra die.
+- A natural roll of the die's highest face is a **Critical** and always
+  succeeds; a natural 1 is a **Fumble** and always fails. Otherwise the
+  total against `vs`: **Success** or **Failure**.
+
 ## Recipes for popular games
 
 | Game | Roll |
 | --- | --- |
-| D&D attack with advantage | `1d20 adv + 7` |
+| D&D attack with advantage | `atk adv + 7 vs 15` (or plain `1d20 adv + 7`) |
 | D&D ability scores | `6 x 4d6 k3` |
 | D&D Great Weapon Fighting | `2d6 r2 + 4` |
 | D&D critical hit (2d8 doubled) | `(Crit) 4d8 + 4` |
@@ -466,6 +666,11 @@ for dice with up to 30 faces.
 | Exalted | `8d10 t7 ds10` |
 | Shadowrun 6 | `12d6 t5` |
 | Year Zero (Alien) | `base:4d6 t6 + stress:2d6 t6` |
+| One-Roll Engine | `7d10 sets` |
+| Call of Cthulhu | `coc 65 b1` |
+| Savage Worlds | `sw8 + 1 vs 6` |
+| Vampire 5e | `vtm 7 h2 vs 3` |
+| DCC | `dcc d20 +1d + 2` |
 | Warhammer 40k to-hit | `10d6 t4` |
 | Cyberpunk Red | `1d10 i1 e10 + 12` |
 | Dark Heresy righteous fury | `4d10 ie10` |
@@ -473,9 +678,8 @@ for dice with up to 30 faces.
 | d66 table | `dd66` |
 | Hero System normal damage | `6d6 [=1, =6]` (1 = 0 BODY, 6 = 2 BODY) |
 
-Game systems in D5 add shortcuts and outcomes (raises, success levels,
-messy criticals) for D&D 5e, Savage Worlds, Call of Cthulhu 7e, FATE,
-Vampire 5e and DCC.
+The [game systems](#game-systems) add their outcomes (raises, success
+levels, messy criticals) on top.
 
 ## Errors
 
@@ -520,6 +724,17 @@ wrong. The console underlines it:
 | too long: at most 24 numbers, dice and signs | a very long sum |
 | explodes or rerolls on every face, so it would never stop | `1d6 ie1` |
 | at most 4 rolls on one line | a fifth `;` |
+| vs needs a number | `1d20 vs` |
+| for coc, vs is regular, hard or extreme | `coc 60 vs 30` |
+| no maths after coc / vtm | `coc 60 + 5` |
+| sw needs the trait die / the trait die is d4 … d12 | `sw`, `sw7` |
+| coc needs the skill / vtm needs the dice pool | `coc`, `vtm h2` |
+| hunger is 0 to 5 | `vtm 7 h6` |
+| not on the dice chain | `dcc d9` |
+| at most 3 bonus or penalty dice | `d% b4` |
+| p (penalty dice) is for d% | `2d6 p1` |
+| d% takes b and p … | `d% e` |
+| sets takes no number | `5d10 sets2` |
 
 ## Warnings
 
@@ -554,9 +769,10 @@ All are compile-time settings in `qd4p/qd_config.h`.
 ## Differences from Dice Maiden
 
 - `d66` is a 1–66 die; digit dice are `dd66`.
-- Dice Maiden's game aliases (`sw8`, `4cod`, `vtm7h2` …) are not notation
-  here; QD4P's game systems (D5) are their own layer with their own
-  shortcuts.
+- Game shortcuts are QD4P's own: `sw8`, `coc 65 b1`, `vtm 7 h2`, `fate`,
+  `atk`/`chk`/`save`, `dcc d20 +1d`. Dice Maiden's other aliases (`4cod`,
+  `ex5` …) are written out in plain notation (see the recipes).
+- `vs N` is QD4P's own.
 - Roll sets are written `6 x 4d6 k3` (Dice Maiden: `6 4d6 k3`).
 - Buckets (`[<3, =6]`), group names (`base:`), custom dice (`d{name}`) and
   digit dice are QD4P's own.
@@ -570,7 +786,12 @@ For the curious, and for anyone writing a compatible parser:
 
 ```
 line     = roll { ";" roll }
-roll     = { repeat | label } sum [ buckets ] [ "!" comment ]
+roll     = { repeat | label } ( system tail | sum ) [ "vs" target ] [ buckets ] [ "!" comment ]
+system   = ( "atk" | "chk" | "check" | "save" ) { "adv" | "dis" }
+         | "sw" NUMBER [ "x" ] | "coc" NUMBER { ( "b" | "p" ) [ NUMBER ] }
+         | "fate" | "vtm" NUMBER [ "h" NUMBER ] | "dcc" [ NUMBER ] "d" NUMBER { ( "+" | "-" ) NUMBER "d" }
+tail     = { ( "*" | "/" ) unary } { ( "+" | "-" ) product }      (none after coc, vtm)
+target   = [ "-" ] NUMBER | "regular" | "hard" | "extreme"       (the words for coc)
 repeat   = NUMBER "x"
 label    = "(" LETTER { any but ")" } ")"
 sum      = product { ( "+" | "-" ) product }
@@ -580,7 +801,8 @@ primary  = NUMBER | dice | "(" sum ")"
 dice     = [ NAME ":" ] [ NUMBER ] "d" kind { modifier }
 kind     = NUMBER | "%" | "F" | "{" NAME "}" | "d" DIGIT { DIGIT }
 modifier = ( "adv" | "dis" | "e" | "ie" | "i" | "r" | "ir" | "rg" | "irg"
-           | "k" | "kl" | "km" | "d" | "dh" | "t" | "tl" | "ds" | "f" | "b" ) [ NUMBER ]
+           | "k" | "kl" | "km" | "d" | "dh" | "t" | "tl" | "ds" | "f" | "b" | "p" ) [ NUMBER ]
+           | "sets"                                    (b and p on d%: bonus, penalty)
 buckets  = "[" bucket { "," bucket } "]"
 bucket   = [ "<" | "<=" | ">" | ">=" | "=" | "!=" ] ( INTEGER | INTEGER "-" INTEGER
            | "max" | "min" | LABEL | '"' LABEL '"' )
@@ -615,6 +837,9 @@ for (int i = 0; i < roll.repeat; i++) {
   dice.
 - `qd_parse_set_lookup(fn, ctx)` supplies custom dice for `d{name}`.
 - `qd_roll_warnings(&roll.roll)` and `qd_warn_text()` give the warnings.
+- `qd_sys_outcome(&roll.roll, &res, &outcome)` gives the game reading:
+  `outcome.text` ("Success, 2 raises"), `outcome.detail` ("1 ace, vs 4"),
+  `outcome.pass`, `outcome.level`, `outcome.margin`, `outcome.degrees`.
 - Everything a parsed roll contains can also be built directly in C with
   the `qd_roll_*` and `qd_pool_*` functions in `qd_roll.h`; the parser is
   optional.

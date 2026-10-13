@@ -17,6 +17,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <strings.h>
 
 #include "pico/stdlib.h"
 #include "pico/stdio_usb.h"
@@ -249,6 +250,13 @@ static void print_result(const qd_parsed_t *ps, const qd_result_t *res)
             printf("  (%u kept, low %d, high %d, average %.2f)", pr->kept, pr->min, pr->max,
                    (double)pr->total / pr->kept);
         printf("\n");
+        if (p->sets) {
+            printf("    sets:");
+            if (!pr->set_count) printf(" none");
+            for (int k2 = 0; k2 < pr->set_count; k2++)
+                printf(" %ux%d", pr->sets[k2].size, pr->sets[k2].value);
+            printf("\n");
+        }
         if (pr->listed < pr->rolled && pr->face_counts) {
             printf("    faces:");
             for (int f = 0; f < (p->die ? p->die->sides : p->sides); f++)
@@ -311,6 +319,11 @@ static void cmd_roll(char *args)
             uint32_t us = time_us_32() - t0;
             if (ps->repeat > 1) printf(" #%d\n", rep + 1);
             print_result(ps, &res);
+            qd_outcome_t o;
+            if (qd_sys_outcome(&ps->roll, &res, &o) && (o.text[0] || o.detail[0])) {
+                if (o.text[0] && o.detail[0]) printf("  => %s  (%s)\n", o.text, o.detail);
+                else printf("  => %s\n", o.text[0] ? o.text : o.detail);
+            }
             if (res.rolled > 100) printf("  (%u dice in %lu us)\n", res.rolled, (unsigned long)us);
         }
     }
@@ -364,6 +377,12 @@ static void cmd_notation(char *args)
         "buckets   [<3, =6, 3-5, =max, =+]   at the end of a roll\n"
         "groups    base:4d6 t6 + stress:2d6 t6\n"
         "around    (Label) 1d20+5 ! comment    6 x 4d6k3    2d6 ; 3d8 (up to 4)\n"
+        "target    ... vs 15   pass if the total (or successes) reaches 15\n"
+        "sets      5d10 sets   pairs, triples ...      d%% b2 / p1: bonus, penalty dice\n"
+        "systems   atk adv + 5 vs 15   chk + 3   save dis + 2         (D&D 5e)\n"
+        "          sw8 + 1 vs 6   sw6 x (Extra)                         (Savage Worlds)\n"
+        "          coc 65 b1   coc 40 p2 vs hard                       (Call of Cthulhu)\n"
+        "          fate + 2 vs 3   vtm 7 h2 vs 3   dcc d20 +1d + 2 vs 15\n"
         "spaces    optional; capitals fine. After dice d1 means drop: +1d1 for a die\n"
         "shown as  5 kept  (5) dropped  ~2~ rerolled  !6 exploded  -7 subtracted\n"
         "          8* success  10** double  1x failure  b botch\n"
@@ -555,8 +574,17 @@ static void run_line(char *line)
         }
     /* Anything else is tried as a roll: "4d6k3", "(Bite) 1d20+5", "6 x 4d6k3". */
     if (*args) line[strlen(line)] = ' ';    /* put the line back together */
+    static const char *const system_words[] = { "atk", "chk", "check", "save", "fate", "coc",
+                                                 "vtm", "dcc" };
     bool looks_like_roll = !isalpha((unsigned char)*line) || tolower((unsigned char)*line) == 'd' ||
-                           strchr(line, ':') != NULL;
+                           strchr(line, ':') != NULL ||
+                           (tolower((unsigned char)line[0]) == 's' && tolower((unsigned char)line[1]) == 'w' &&
+                            isdigit((unsigned char)line[2]));
+    for (size_t k = 0; k < sizeof(system_words) / sizeof(system_words[0]); k++) {
+        size_t n = strlen(system_words[k]);
+        if (!strncasecmp(line, system_words[k], n) && !isalpha((unsigned char)line[n]))
+            looks_like_roll = true;
+    }
     if (looks_like_roll) {
         cmd_roll(line);
         return;

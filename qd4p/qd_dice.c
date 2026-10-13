@@ -54,6 +54,17 @@ void qd_die_fudge(qd_die_t *die)
     qd_die_custom(die, fudge, 6);
 }
 
+const qd_die_t *qd_fudge_die(void)
+{
+    static qd_die_t die;
+    static bool ready;
+    if (!ready) {
+        qd_die_fudge(&die);
+        ready = true;
+    }
+    return &die;
+}
+
 qd_face_roll_t qd_die_roll(const qd_die_t *die)
 {
     qd_face_roll_t r = { 0, 0 };

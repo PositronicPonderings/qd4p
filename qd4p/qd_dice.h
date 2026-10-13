@@ -79,6 +79,9 @@ bool qd_die_custom(qd_die_t *die, const qd_face_t *faces, uint16_t count);
 /** A Fudge/FATE die: -1, 0, +1 twice each, labelled "-", " ", "+". */
 void qd_die_fudge(qd_die_t *die);
 
+/** One shared, ready-made Fudge die (what "dF" and the FATE system use). */
+const qd_die_t *qd_fudge_die(void);
+
 /** Roll one die. */
 qd_face_roll_t qd_die_roll(const qd_die_t *die);
 

@@ -41,6 +41,11 @@
 #define QD_MAX_EXPLOSIONS       100
 #endif
 
+/** Matching sets reported per pool ("sets": pairs, triples ...). */
+#ifndef QD_MAX_SETS
+#define QD_MAX_SETS             8
+#endif
+
 /** User-defined buckets ("<3", "=6", ...) per roll. */
 #ifndef QD_MAX_BUCKETS
 #define QD_MAX_BUCKETS          8

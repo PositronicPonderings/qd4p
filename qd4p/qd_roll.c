@@ -169,6 +169,18 @@ qd_pool_t *qd_roll_custom(qd_roll_t *r, uint16_t count, const qd_die_t *die)
     return join_sum(r, p, false);
 }
 
+qd_pool_t *qd_roll_percent(qd_roll_t *r, uint16_t count, int bonus)
+{
+    qd_pool_t *p = qd_roll_new_pool(r);
+    if (p) {
+        p->count = count;
+        p->sides = 100;
+        p->percentile = true;
+        p->pct_bonus = (int8_t)(bonus > 127 ? 127 : bonus < -127 ? -127 : bonus);
+    }
+    return join_sum(r, p, false);
+}
+
 qd_pool_t *qd_roll_digits(qd_roll_t *r, uint16_t count, const char *digits)
 {
     size_t n = digits ? strlen(digits) : 0;
@@ -269,7 +281,10 @@ void qd_pool_botch(qd_pool_t *p, qd_test_t t)   { p->botch = t; }
  * ======================================================================== */
 void qd_pool_range(const qd_pool_t *p, int16_t *lo, int16_t *hi)
 {
-    if (p->digits) {
+    if (p->percentile) {
+        *lo = 1;
+        *hi = 100;
+    } else if (p->digits) {
         int a = 0, b = 0;
         for (int i = 0; i < p->digits; i++) {
             a = a * 10 + 1;
@@ -320,6 +335,7 @@ const char *qd_err_text(qd_err_t e)
     case QD_ERR_FOREVER:       return "explodes or rerolls on every face, so it would never stop";
     case QD_ERR_SUM:           return "the sum doesn't add up";
     case QD_ERR_DIV_ZERO:      return "divide by zero";
+    case QD_ERR_PERCENT:       return "percentile dice take bonus/penalty (up to 3) but no other modifiers";
     }
     return "unknown error";
 }
@@ -344,6 +360,13 @@ qd_err_t qd_roll_check(const qd_roll_t *r)
                     return QD_ERR_DIGITS;
         } else if (p->die ? !p->die->sides : (!p->sides || p->sides > 32767)) {
             return QD_ERR_NO_DICE;
+        }
+        if (p->percentile) {
+            if (p->step_count || p->advantage || p->die || p->digits ||
+                p->pct_bonus > QD_MAX_BONUS_DICE || p->pct_bonus < -QD_MAX_BONUS_DICE)
+                return QD_ERR_PERCENT;
+            dice += (uint32_t)p->count * (1u + (uint32_t)(p->pct_bonus < 0 ? -p->pct_bonus : p->pct_bonus));
+            continue;
         }
         dice += p->count + (uint32_t)(p->advantage < 0 ? -p->advantage : p->advantage);
 
@@ -385,7 +408,7 @@ qd_err_t qd_roll_check(const qd_roll_t *r)
             if (i > 0 && r->ops[i - 1].kind == QD_OP_NUMBER && r->ops[i - 1].arg == 0)
                 return QD_ERR_DIV_ZERO;
             /* fall through */
-        case QD_OP_ADD: case QD_OP_SUB: case QD_OP_MUL:
+        case QD_OP_ADD: case QD_OP_SUB: case QD_OP_MUL: case QD_OP_MAX:
             if (depth < 2)
                 return QD_ERR_SUM;
             depth--;
@@ -423,6 +446,24 @@ static bool matches(const pool_ctx_t *c, const qd_test_t *t, const qd_die_result
 
 /* Roll one die of the pool onto the end of the list. Returns its index,
  * or -1 if the roll already has QD_MAX_ROLL_DICE dice. */
+/* Put a die whose value is already known on the end of the list. */
+static int add_record(const pool_ctx_t *c, int16_t value, uint16_t face, uint16_t parent,
+                      uint16_t flags)
+{
+    if (roll_n >= QD_MAX_ROLL_DICE)
+        return -1;
+    qd_die_result_t *d = &work[work_n];
+    d->value = value;
+    d->face = face;
+    d->flags = flags;
+    if (d->value == c->hi) d->flags |= QD_DIE_MAX;
+    if (d->value == c->lo) d->flags |= QD_DIE_MIN;
+    d->parent = parent;
+    d->pool = c->index;
+    roll_n++;
+    return work_n++;
+}
+
 static int add_die(const pool_ctx_t *c, uint16_t parent, uint16_t flags)
 {
     if (roll_n >= QD_MAX_ROLL_DICE)
@@ -555,8 +596,25 @@ static void run_pool(const qd_roll_t *r, uint8_t index, qd_result_t *res)
     /* 1. Roll, then set aside for advantage / disadvantage. */
     int adv = p->advantage;
     int extra = adv < 0 ? -adv : adv;
-    for (int i = 0; i < p->count + extra; i++)
-        add_die(&c, QD_NO_PARENT, 0);
+    if (p->percentile) {
+        /* Each d% is a units die and tens dice (qd_dice.c draws them). The
+         * result is listed; the tens dice not used are listed after it,
+         * set aside, as the results they would have given. */
+        for (int i = 0; i < p->count; i++) {
+            qd_percentile_t pc;
+            qd_roll_percentile(p->pct_bonus, &pc);
+            int main = add_record(&c, pc.result, (uint16_t)(pc.result - 1), QD_NO_PARENT, 0);
+            for (int k = 0; k < pc.tens_count; k++) {
+                if (k == pc.kept) continue;
+                int v = pc.tens[k] * 10 + pc.units;
+                if (!v) v = 100;
+                add_record(&c, (int16_t)v, (uint16_t)(v - 1), (uint16_t)main, QD_DIE_SET_ASIDE);
+            }
+        }
+    } else {
+        for (int i = 0; i < p->count + extra; i++)
+            add_die(&c, QD_NO_PARENT, 0);
+    }
     if (extra) {
         int live = sort_in_play();
         mark_ends(live, adv > 0 ? extra : 0, adv < 0 ? extra : 0, QD_DIE_SET_ASIDE);
@@ -576,6 +634,32 @@ static void run_pool(const qd_roll_t *r, uint8_t index, qd_result_t *res)
     case QD_DROP_LOW:    mark_ends(live, n, 0, QD_DIE_DROPPED); break;
     case QD_DROP_HIGH:   mark_ends(live, 0, n, QD_DIE_DROPPED); break;
     default: break;
+    }
+
+    /* Matching sets among the kept dice: runs of equal values in sorted order. */
+    if (p->sets) {
+        int kept = sort_in_play();
+        for (int a = 0; a < kept;) {
+            int b = a;
+            while (b < kept && work[order[b]].value == work[order[a]].value) b++;
+            if (b - a >= 2) {
+                /* insert, biggest set first, then highest value */
+                int16_t v = work[order[a]].value;
+                uint16_t n = (uint16_t)(b - a);
+                int at = pr->set_count;
+                while (at > 0 && (pr->sets[at - 1].size < n ||
+                                  (pr->sets[at - 1].size == n && pr->sets[at - 1].value < v)))
+                    at--;
+                if (at < QD_MAX_SETS) {
+                    int last = pr->set_count < QD_MAX_SETS ? pr->set_count : QD_MAX_SETS - 1;
+                    for (int m = last; m > at; m--) pr->sets[m] = pr->sets[m - 1];
+                    pr->sets[at].value = v;
+                    pr->sets[at].size = n;
+                    if (pr->set_count < QD_MAX_SETS) pr->set_count++;
+                }
+            }
+            a = b;
+        }
     }
 
     /* 4 and 6. Totals and counting over the kept dice. */
@@ -665,6 +749,7 @@ static int32_t run_sum(const qd_roll_t *r, qd_result_t *res)
         case QD_OP_ADD: a += b; break;
         case QD_OP_SUB: a -= b; break;
         case QD_OP_MUL: a *= b; break;
+        case QD_OP_MAX: a = a > b ? a : b; break;
         case QD_OP_DIV:
             if (b == 0) {
                 res->flags |= QD_RES_DIV_ZERO;

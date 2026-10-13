@@ -176,7 +176,8 @@ parser out. The full reference, with every rule and example, is
 | Implode | `i` `iN` | `1d10 i1 e10` |
 | Reroll | `rN` `irN` `rgN` `irgN` | `2d6 r1` |
 | Success counting | `tN` `tlN` `fN` `bN` `dsN` | `6d10 t8 f1` |
-| Matching sets | `sets` | `5d10 sets` (not yet: with the game systems) |
+| Matching sets | `sets` | `5d10 sets` |
+| Target | `vs N` | `1d20+5 vs 15` |
 | Buckets | `[<3, =6]` | `100d6+2 [<3, =6]` |
 | Groups | `name:` | `base:4d6 t6 + stress:2d6 t6` |
 | Repeat, multi-roll | `N x roll`, `;` | `6 x 4d6k3` |
@@ -189,7 +190,7 @@ with a letter is a label unless it starts with dice or a group name;
 `qd_format` writes any parsed roll back as text that parses to the same
 roll.
 
-**Percentile bonus and penalty dice (CoC, D5):** `d% b2` rolls two extra tens
+**Percentile bonus and penalty dice (CoC):** `d% b2` rolls two extra tens
 dice and keeps the best, `d% p1` one extra and keeps the worst, up to 3 each
 way; bonus and penalty cancel one for one. Every tens die stays in the
 result, marked kept or dropped.
@@ -200,23 +201,27 @@ check roll expressions.
 
 ## Outcomes and game systems
 
-A system is a shortcut (expands to core notation) plus an outcome rule.
-Building blocks: target and margin, raises, degrees (bands or fractions of a
-skill), crit/fumble rules, opposed rolls.
-
-Built-in v1 systems (decided; others are user-defined or later):
+A system is a builder (puts the game's dice at the start of a roll; maths
+can follow) plus an outcome rule (`qd_sys_outcome`: text, detail, level,
+pass, margin, degrees). The roll records which system and target it has, so
+the formatter writes the shortcut back. Full rules: notation.md, "Game
+systems". Done in D5 (`qd_sys.h`):
 
 | System | Shortcut | Outcome |
 | --- | --- | --- |
-| Generic | notation | total, successes, buckets |
-| D&D 5e | `d20 +5 adv` | pass/fail vs DC, natural 20/1 |
-| Savage Worlds | `sw8`, `sw8 w` | success, raises, snake eyes, aces |
-| Call of Cthulhu 7e | `coc 65`, `b1-b3`/`p1-p3` | Fumble / Fail / Regular / Hard / Extreme / Critical |
-| FATE | `fate +2` | ladder result |
-| Vampire 5e | `vtm 6 h2` | successes, critical, messy critical, bestial failure |
-| DCC | `dcc d24+2` | total; dice-chain helpers |
+| Any roll | `... vs N` | Pass / Fail by the total, or the successes |
+| D&D 5e | `atk` / `chk` / `save`, `adv` / `dis` | Hit / Miss / Critical hit (attacks: nat 20 hits, nat 1 misses); checks and saves only note nat 20/1 |
+| Savage Worlds | `sw4`..`sw12`, `x` for an Extra | Success, raises (every 4), Critical failure (snake eyes), aces; TN 4 default |
+| Call of Cthulhu 7e | `coc 65 b1`, `vs hard` | Critical / Extreme / Hard / Regular / Failure / Fumble, difficulty met |
+| FATE | `fate + 2 vs 3` | ladder; Fail / Tie / Success / Success with style |
+| Vampire 5e | `vtm 7 h2 vs 3` | successes with crit pairs; Critical, Messy critical, Bestial failure, Total failure |
+| DCC | `dcc d20 +1d + 2` | dice chain steps; Critical (natural max), Fumble (natural 1) |
 
-Mass rolls use the same rules and return counts.
+Decided in D5: `vs N` is the one target word for every system; `sw8` is a
+Wild Card (`x` for an Extra); DCC chain steps are `+1d` / `-2d`; D&D
+natural 20/1 decide attacks only. `d%` is now always a units and a tens
+d10 (same odds as before), so `d% b2` / `p1` work anywhere, and `sets`
+reports matching dice.
 
 ## Extras
 
@@ -254,7 +259,7 @@ Mass rolls use the same rules and return counts.
 4. **D3 Roll engine** (rolls built in C). First point the Dice Roller can
    use. Done: `qd_roll.h`.
 5. **D4 Parser.** Done: `qd_parse.h`, [notation.md](notation.md).
-6. **D5 Outcomes and systems.**
+6. **D5 Outcomes and systems.** Done: `qd_sys.h`.
 7. **D6 Rerolls and roll sets.**
 8. **D7 Stats for nerds and odds.**
 9. **D8 Random tables.**

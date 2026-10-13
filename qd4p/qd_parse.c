@@ -33,6 +33,7 @@
 #include <string.h>
 
 #include "qd_parse.h"
+#include "qd_sys.h"
 
 static qd_die_lookup_t lookup_fn;
 static void *lookup_ctx;
@@ -43,17 +44,7 @@ void qd_parse_set_lookup(qd_die_lookup_t fn, void *ctx)
     lookup_ctx = ctx;
 }
 
-/* The Fudge die every "dF" pool points at. */
-static const qd_die_t *fudge_die(void)
-{
-    static qd_die_t die;
-    static bool ready;
-    if (!ready) {
-        qd_die_fudge(&die);
-        ready = true;
-    }
-    return &die;
-}
+static const qd_die_t *fudge_die(void) { return qd_fudge_die(); }
 
 /* ========================================================================
  * Reading characters
@@ -134,20 +125,26 @@ static bool push(ps_t *ps, qd_op_kind_t kind, int32_t arg, int pos)
  * Dice and their modifiers
  * ======================================================================== */
 enum { M_ADV, M_DIS, M_IRG, M_IR, M_IE, M_I, M_RG, M_R, M_KL, M_KM, M_K, M_DH, M_DS,
-       M_DD, M_D, M_TL, M_T, M_F, M_B, M_E };
+       M_DD, M_D, M_TL, M_T, M_F, M_B, M_E, M_SETS, M_P };
 
 /* Longest first wherever one keyword starts another ("irg" before "ir"). */
 static const char *const keywords[] = {
     "adv", "dis", "irg", "ir", "ie", "i", "rg", "r", "kl", "km", "k", "dh", "ds",
-    "dd", "d", "tl", "t", "f", "b", "e",
+    "dd", "d", "tl", "t", "f", "b", "e", "sets", "p",
 };
+
+/* "vs" ends the dice part: it isn't a modifier. */
+static bool at_vs(const ps_t *ps)
+{
+    return looking_at(ps, "vs") && !is_alpha(at(ps, ps->i + 2));
+}
 
 static bool modifiers(ps_t *ps, qd_pool_t *p)
 {
     for (;;) {
         skip_space(ps);
         int start = ps->i;
-        if (!is_alpha(peek(ps)))
+        if (!is_alpha(peek(ps)) || at_vs(ps))
             return true;
         int m = -1;
         for (int k = 0; k < (int)(sizeof(keywords) / sizeof(keywords[0])); k++)
@@ -177,6 +174,8 @@ static bool modifiers(ps_t *ps, qd_pool_t *p)
                     m == M_R || m == M_E;
         if (step && p->digits)
             return fail(ps, start, len, "digit dice can't explode, implode or reroll");
+        if ((step || m == M_ADV || m == M_DIS) && p->percentile)
+            return fail(ps, start, len, "d%% takes b and p (bonus, penalty) but can't explode, reroll or take advantage");
         qd_test_t t;
         bool ok = true;
         switch (m) {
@@ -228,8 +227,22 @@ static bool modifiers(ps_t *ps, qd_pool_t *p)
         case M_F:
             qd_pool_failure(p, has ? qd_test_le((int)n) : qd_test_min());
             break;
-        case M_B:
-            qd_pool_botch(p, has ? qd_test_le((int)n) : qd_test_min());
+        case M_B: case M_P:
+            if (p->percentile) {                        /* d% b2: bonus dice, d% p1: penalty */
+                int b = p->pct_bonus + (m == M_B ? 1 : -1) * (int)(has ? n : 1);
+                if (b > QD_MAX_BONUS_DICE || b < -QD_MAX_BONUS_DICE)
+                    return fail(ps, start, len, "at most %d bonus or penalty dice", QD_MAX_BONUS_DICE);
+                p->pct_bonus = (int8_t)b;
+            } else if (m == M_P) {
+                return fail(ps, start, len, "p (penalty dice) is for d%%: d%% p1");
+            } else {
+                qd_pool_botch(p, has ? qd_test_le((int)n) : qd_test_min());
+            }
+            break;
+        case M_SETS:
+            if (has)
+                return fail(ps, start, len, "sets takes no number");
+            p->sets = true;
             break;
         }
         if (!ok)
@@ -275,6 +288,7 @@ static bool dice(ps_t *ps, int start, long count, const char *name)
     } else if (c == '%') {
         ps->i++;
         p->sides = 100;
+        p->percentile = true;                           /* a units d10 and a tens d10 */
     } else if (c == 'f') {
         ps->i++;
         p->die = fudge_die();
@@ -392,10 +406,9 @@ static bool unary(ps_t *ps)
     return primary(ps);
 }
 
-static bool product(ps_t *ps)
+/* The "* x / y ..." that follows a first value already pushed. */
+static bool product_rest(ps_t *ps)
 {
-    if (!unary(ps))
-        return false;
     for (;;) {
         skip_space(ps);
         char c = peek(ps);
@@ -412,10 +425,14 @@ static bool product(ps_t *ps)
     }
 }
 
-static bool sum(ps_t *ps)
+static bool product(ps_t *ps)
 {
-    if (!product(ps))
-        return false;
+    return unary(ps) && product_rest(ps);
+}
+
+/* The "+ x - y ..." that follows a first product already pushed. */
+static bool sum_rest(ps_t *ps)
+{
     for (;;) {
         skip_space(ps);
         char c = peek(ps);
@@ -427,6 +444,198 @@ static bool sum(ps_t *ps)
         if (!push(ps, c == '+' ? QD_OP_ADD : QD_OP_SUB, 0, op))
             return false;
     }
+}
+
+static bool sum(ps_t *ps)
+{
+    return product(ps) && sum_rest(ps);
+}
+
+/* ========================================================================
+ * Game-system shortcuts: atk, chk, save, sw8, coc 65, fate, vtm 7 h2, dcc d20
+ * ======================================================================== */
+
+/* Is the word `w` here, whole (not followed by a letter or ':')? */
+static bool word_here(const ps_t *ps, const char *w)
+{
+    int n = (int)strlen(w);
+    char after = at(ps, ps->i + n);
+    return looking_at(ps, w) && !is_alpha(after) && after != ':' && after != '_';
+}
+
+/* An optional number straight after a letter: "b2", "h3". */
+static bool small_number(ps_t *ps, long dflt, long *v)
+{
+    if (!is_digit(peek(ps))) { *v = dflt; return true; }
+    return read_number(ps, v);
+}
+
+static bool sys_dnd(ps_t *ps, int kind, int start)
+{
+    int adv = 0;
+    for (;;) {
+        skip_space(ps);
+        if (word_here(ps, "adv"))      { ps->i += 3; adv++; }
+        else if (word_here(ps, "dis")) { ps->i += 3; adv--; }
+        else break;
+    }
+    if (!qd_sys_dnd(&ps->out->roll, kind, adv))
+        return fail(ps, start, ps->i - start, "too long");
+    return true;
+}
+
+static bool sys_sw(ps_t *ps, int start)
+{
+    long sides;
+    if (!read_number(ps, &sides))
+        return fail(ps, ps->i, 1, "sw needs the trait die: sw4, sw6, sw8, sw10 or sw12");
+    bool extra = false;
+    skip_space(ps);
+    if (lower(peek(ps)) == 'x' && !is_alpha(at(ps, ps->i + 1)) && !is_digit(at(ps, ps->i + 1))) {
+        ps->i++;
+        extra = true;
+    }
+    if (!qd_sys_sw(&ps->out->roll, (int)sides, !extra))
+        return fail(ps, start, ps->i - start, "the trait die is d4, d6, d8, d10 or d12: sw4 ... sw12 (add +1 for d12+1)");
+    return true;
+}
+
+static bool sys_coc(ps_t *ps, int start)
+{
+    long skill;
+    skip_space(ps);
+    if (!read_number(ps, &skill))
+        return fail(ps, ps->i, 1, "coc needs the skill: coc 65");
+    int bonus = 0;
+    for (;;) {
+        skip_space(ps);
+        int at0 = ps->i;
+        char c = lower(peek(ps));
+        if ((c == 'b' || c == 'p') && (is_digit(at(ps, ps->i + 1)) || !is_alpha(at(ps, ps->i + 1)))) {
+            ps->i++;
+            long n;
+            if (!small_number(ps, 1, &n))
+                return false;
+            bonus += c == 'b' ? (int)n : -(int)n;
+            if (bonus > QD_MAX_BONUS_DICE || bonus < -QD_MAX_BONUS_DICE)
+                return fail(ps, at0, ps->i - at0, "at most %d bonus or penalty dice", QD_MAX_BONUS_DICE);
+        } else {
+            break;
+        }
+    }
+    if (!qd_sys_coc(&ps->out->roll, (int)skill, bonus))
+        return fail(ps, start, ps->i - start, "the skill is 0 to 999");
+    return true;
+}
+
+static bool sys_vtm(ps_t *ps, int start)
+{
+    long pool, hunger = 0;
+    skip_space(ps);
+    if (!read_number(ps, &pool))
+        return fail(ps, ps->i, 1, "vtm needs the dice pool: vtm 7 h2");
+    skip_space(ps);
+    if (lower(peek(ps)) == 'h' && !is_alpha(at(ps, ps->i + 1))) {
+        int h0 = ps->i++;
+        if (!small_number(ps, 1, &hunger))
+            return false;
+        if (hunger > 5)
+            return fail(ps, h0, ps->i - h0, "hunger is 0 to 5");
+    }
+    if (pool < 1 || pool > 50)
+        return fail(ps, start, ps->i - start, "the pool is 1 to 50 dice");
+    qd_sys_vtm(&ps->out->roll, (int)pool, (int)hunger);
+    return true;
+}
+
+static bool sys_dcc(ps_t *ps, int start)
+{
+    skip_space(ps);
+    long count = 1, sides;
+    int d0 = ps->i;
+    if (is_digit(peek(ps)) && !read_number(ps, &count))
+        return false;
+    if (lower(peek(ps)) != 'd' || !is_digit(at(ps, ps->i + 1)))
+        return fail(ps, ps->i, 1, "dcc needs a die: dcc d20");
+    ps->i++;
+    if (!read_number(ps, &sides))
+        return false;
+    if (!qd_dcc_chain((int)sides, 0))
+        return fail(ps, d0, ps->i - d0, "not on the dice chain (d3 d4 d5 d6 d7 d8 d10 d12 d14 d16 d20 d24 d30)");
+    /* Chain steps: "+1d", "-2d" - a sign, a number and a d with no sides after it. */
+    int steps = 0;
+    for (;;) {
+        skip_space(ps);
+        char sign = peek(ps);
+        if (sign != '+' && sign != '-') break;
+        int j = ps->i + 1;
+        while (at(ps, j) == ' ') j++;
+        int k = j;
+        while (is_digit(at(ps, k))) k++;
+        char after = at(ps, k + 1);
+        if (k == j || lower(at(ps, k)) != 'd' || is_digit(after) || after == '%' || after == '{' ||
+            lower(after) == 'f' || lower(after) == 'd')
+            break;                                      /* "+2" or "+1d4": maths, not a step */
+        long n = 0;
+        for (int q = j; q < k; q++) n = n * 10 + (ps->s[q] - '0');
+        steps += sign == '+' ? (int)n : -(int)n;
+        ps->i = k + 1;
+    }
+    if (!qd_sys_dcc(&ps->out->roll, (int)count, (int)sides, steps))
+        return fail(ps, start, ps->i - start, "can't build that dcc roll");
+    return true;
+}
+
+/* A shortcut at the start of a roll? `*found` says whether one was read. */
+static bool try_system(ps_t *ps, bool *found)
+{
+    int start = ps->i;
+    *found = true;
+    if (word_here(ps, "atk"))   { ps->i += 3; return sys_dnd(ps, QD_DND_ATTACK, start); }
+    if (word_here(ps, "chk"))   { ps->i += 3; return sys_dnd(ps, QD_DND_CHECK, start); }
+    if (word_here(ps, "check")) { ps->i += 5; return sys_dnd(ps, QD_DND_CHECK, start); }
+    if (word_here(ps, "save"))  { ps->i += 4; return sys_dnd(ps, QD_DND_SAVE, start); }
+    if (word_here(ps, "fate"))  {
+        ps->i += 4;
+        if (!qd_sys_fate(&ps->out->roll)) return fail(ps, start, 4, "too long");
+        return true;
+    }
+    if (word_here(ps, "coc"))   { ps->i += 3; return sys_coc(ps, start); }
+    if (word_here(ps, "vtm"))   { ps->i += 3; return sys_vtm(ps, start); }
+    if (word_here(ps, "dcc"))   { ps->i += 3; return sys_dcc(ps, start); }
+    if (looking_at(ps, "sw") && is_digit(at(ps, ps->i + 2))) { ps->i += 2; return sys_sw(ps, start); }
+    *found = false;
+    return true;
+}
+
+/* "vs 15", "vs -2", or for Call of Cthulhu "vs hard". */
+static bool try_vs(ps_t *ps)
+{
+    if (!at_vs(ps))
+        return true;
+    int start = ps->i;
+    ps->i += 2;
+    skip_space(ps);
+    qd_roll_t *r = &ps->out->roll;
+    if (r->sys.id == QD_SYS_COC) {
+        static const char *const levels[] = { "regular", "hard", "extreme" };
+        for (int k = 0; k < 3; k++)
+            if (word_here(ps, levels[k])) {
+                ps->i += (int)strlen(levels[k]);
+                qd_roll_vs(r, QD_COC_REGULAR + k);
+                return true;
+            }
+        return fail(ps, start, ps->i - start + 1, "for coc, vs is regular, hard or extreme");
+    }
+    bool neg = peek(ps) == '-';
+    if (neg) ps->i++;
+    long n;
+    if (!is_digit(peek(ps)))
+        return fail(ps, ps->i, 1, "vs needs a number: vs 15");
+    if (!read_number(ps, &n))
+        return false;
+    qd_roll_vs(r, (int32_t)(neg ? -n : n));
+    return true;
 }
 
 /* ========================================================================
@@ -622,7 +831,24 @@ static bool roll(ps_t *ps)
     skip_space(ps);
     if (!peek(ps))
         return fail(ps, ps->i, 1, "nothing to roll");
-    if (!sum(ps))
+    bool sys;
+    if (!try_system(ps, &sys))
+        return false;
+    if (sys) {
+        /* After a shortcut: maths, for systems where the total is what counts. */
+        uint8_t id = out->roll.sys.id;
+        skip_space(ps);
+        char c = peek(ps);
+        if ((id == QD_SYS_COC || id == QD_SYS_VTM) && c && strchr("+-*/", c))
+            return fail(ps, ps->i, 1, "no maths after %s: the %s is the number that counts",
+                        id == QD_SYS_COC ? "coc" : "vtm", id == QD_SYS_COC ? "skill" : "pool");
+        if (!product_rest(ps) || !sum_rest(ps))
+            return false;
+    } else if (!sum(ps)) {
+        return false;
+    }
+    skip_space(ps);
+    if (!try_vs(ps))
         return false;
     skip_space(ps);
     if (peek(ps) == '[' && !buckets(ps))
@@ -653,7 +879,7 @@ static bool roll(ps_t *ps)
         }
         if (c == ')')
             return fail(ps, ps->i, 1, "a ')' without its '('");
-        return fail(ps, ps->i, 1, "expected + - * / [ ! or the end, not '%c'", c);
+        return fail(ps, ps->i, 1, "expected + - * / vs [ ! or the end, not '%c'", c);
     }
     if (!out->roll.pool_count)
         return fail(ps, start, ps->end - start, "no dice in this roll");
@@ -729,6 +955,10 @@ static void put_pool(out_t *o, const qd_parsed_t *ps, int k)
     if (p->digits) {
         put(o, "d");
         for (int d = 0; d < p->digits; d++) put(o, "%u", p->digit_sides[d]);
+    } else if (p->percentile) {
+        put(o, "%%");
+        if (p->pct_bonus > 0) put(o, " b%d", p->pct_bonus);
+        if (p->pct_bonus < 0) put(o, " p%d", -p->pct_bonus);
     } else if (p->die == fudge_die()) {
         put(o, "F");
     } else if (p->die) {
@@ -757,6 +987,36 @@ static void put_pool(out_t *o, const qd_parsed_t *ps, int k)
     }
     if (p->failure.op != QD_TEST_NONE) put_test(o, "f", &p->failure);
     if (p->botch.op != QD_TEST_NONE)   put_test(o, "b", &p->botch);
+    if (p->sets) put(o, " sets");
+}
+
+/* A system shortcut, written back as it would be typed. */
+static void put_system(out_t *o, const qd_roll_t *r)
+{
+    const qd_system_t *s = &r->sys;
+    switch (s->id) {
+    case QD_SYS_DND:
+        put(o, "%s", s->kind == QD_DND_ATTACK ? "atk" : s->kind == QD_DND_SAVE ? "save" : "chk");
+        if (s->a > 0) put(o, " adv");
+        if (s->a < 0) put(o, " dis");
+        break;
+    case QD_SYS_SW:   put(o, "sw%d%s", s->a, s->b ? "" : " x"); break;
+    case QD_SYS_COC:
+        put(o, "coc %d", s->a);
+        if (s->b > 0) put(o, " b%d", s->b);
+        if (s->b < 0) put(o, " p%d", -s->b);
+        break;
+    case QD_SYS_FATE: put(o, "fate"); break;
+    case QD_SYS_VTM:
+        put(o, "vtm %d", s->a);
+        if (s->b) put(o, " h%d", s->b);
+        break;
+    case QD_SYS_DCC:
+        put(o, "dcc %dd%d", s->kind, s->c);
+        if (s->b) put(o, " %+dd", s->b);
+        break;
+    default: put(o, "?");
+    }
 }
 
 int qd_format_pool(const qd_parsed_t *p, int pool, char *buf, int size)
@@ -784,6 +1044,10 @@ static int precedence(const qd_op_t *op)
 static void put_op(out_t *o, const qd_parsed_t *ps, const int *left, const int *right, int k)
 {
     const qd_op_t *op = &ps->roll.ops[k];
+    if (ps->roll.sys.id && k == ps->roll.sys.ops - 1) {    /* the shortcut's own steps */
+        put_system(o, &ps->roll);
+        return;
+    }
     switch (op->kind) {
     case QD_OP_POOL:   put_pool(o, ps, op->arg); return;
     case QD_OP_NUMBER: put(o, "%ld", (long)op->arg); return;
@@ -801,7 +1065,8 @@ static void put_op(out_t *o, const qd_parsed_t *ps, const int *left, const int *
     bool lb = precedence(l) < p;
     bool rb = precedence(r) < p ||
               (precedence(r) == p && (op->kind == QD_OP_SUB || op->kind == QD_OP_DIV));
-    static const char sym[] = { [QD_OP_ADD] = '+', [QD_OP_SUB] = '-', [QD_OP_MUL] = '*', [QD_OP_DIV] = '/' };
+    static const char sym[] = { [QD_OP_ADD] = '+', [QD_OP_SUB] = '-', [QD_OP_MUL] = '*', [QD_OP_DIV] = '/',
+                                [QD_OP_MAX] = '?' };
     if (lb) put(o, "(");
     put_op(o, ps, left, right, left[k]);
     put(o, lb ? ") %c " : " %c ", sym[op->kind]);
@@ -838,6 +1103,15 @@ int qd_format(const qd_parsed_t *p, char *buf, int size)
         put_op(&o, p, left, right, stack[0]);
     else
         put(&o, "?");
+    if (r->sys.has_target) {
+        if (r->sys.id == QD_SYS_COC) {
+            static const char *const levels[] = { "regular", "hard", "extreme" };
+            int t = r->sys.target;
+            put(&o, " vs %s", levels[(t < 1 ? 1 : t > 3 ? 3 : t) - 1]);
+        } else {
+            put(&o, " vs %ld", (long)r->sys.target);
+        }
+    }
 
     if (r->bucket_count) {
         put(&o, " [");
