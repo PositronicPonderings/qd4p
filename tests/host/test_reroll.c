@@ -285,6 +285,22 @@ static void test_sets(void)
               "'%s': column %d '%s'", bad[c].text, err.pos + 1, err.message);
     }
     CHECK(!qd_parse("3 x (6x4d6)k3", &p, &err), "a set can't be repeated again");
+    CHECK(!qd_parse("(21 x 4d6) k3", &p, &err) && strstr(err.message, "at most 20 rolls"), "a set: up to 20 rolls");
+
+    /* Mass rolls: hundreds of the same roll, counted. */
+    qd_mass_result_t m;
+    CHECK(qd_parse("400 x atk + 4 vs 15", &p, &err) && p.repeat == 400 && !p.set, "400 x atk parses");
+    qd_mass_run(&p, &m);
+    int lv = 0;
+    for (int l = 0; l < 9; l++) lv += m.level[l];
+    CHECK(m.count == 400 && m.judged && lv == 400 &&
+          m.passes == m.level[QD_LVL_PASS + 4] + m.level[QD_LVL_CRIT + 4] &&
+          m.lo >= 5 && m.hi <= 24 && m.passes > 100 && m.passes < 260,
+          "400 attacks: every one judged, %u hit (expect about 200)", m.passes);
+    qd_parse("1000 x 6d10 t8", &p, &err);
+    qd_mass_run(&p, &m);
+    CHECK(m.count == 1000 && m.counting && !m.judged && fabs((double)m.sum / m.count - 1.8) < 0.15,
+          "1000 success rolls: %.3f successes on average (expect 1.8)", (double)m.sum / m.count);
 }
 
 int main(void)

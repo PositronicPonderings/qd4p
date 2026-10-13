@@ -438,6 +438,20 @@ is repeated, modifiers included.
 To keep or drop whole rolls, put the repeat in brackets: see
 [roll sets](#roll-sets).
 
+**Mass rolls**: more than 20 repeats (up to 1,000) are counted rather than
+listed: the average, lowest and highest value, how many passed, and how
+many of each outcome. The same rules as one roll, just many of them: a
+horde's attacks, a volley of arrows.
+
+```
+400 x atk + 4 vs 15       400 attacks: hits, critical hits, misses
+1000 x sw6 + 1 vs 6       raises, successes, failures, critical failures
+500 x vtm 6 h2 vs 3       wins, messy criticals, bestial failures
+```
+
+In C: `qd_mass_run(&parsed, &mass)`. A number straight before a roll
+without the `x` (`400 atk vs 12`) is an error that says to add it.
+
 **Several rolls**: `;` separates up to four rolls on one line. Each has its
 own label, comment and repeat.
 
@@ -814,7 +828,9 @@ wrong. The console underlines it:
 | can't divide by zero | `1d6 / 0` |
 | no dice in this roll | `3 + 4` |
 | a group name goes before dice | `base:5` |
-| repeat 1 to 20 times | `25 x 1d6` |
+| repeat 1 to 1000 times | `1001 x 1d6` |
+| to roll it N times, write N x ... | `400 atk vs 12` |
+| a set has at most 20 rolls | `(21 x 4d6) k3` |
 | a label is at most 23 characters | |
 | at most 8 sets of dice in one roll | nine dice terms |
 | at most 8 buckets | |
@@ -865,7 +881,8 @@ All are compile-time settings in `qd4p/qd_config.h`.
 | Numbers, dice and signs in one roll's sum | 24 |
 | Buckets | 8 |
 | Brackets inside brackets | 8 |
-| Repeats (`N x`), and rolls in a set | 20 |
+| Repeats listed one by one (`N x`), and rolls in a set | 20 |
+| Repeats of a mass roll (counted, not listed) | 1,000 |
 | Rolls on one line (`;`) | 4 |
 | Label / comment / group name / custom die name | 23 / 47 / 7 / 15 characters |
 

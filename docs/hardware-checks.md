@@ -210,7 +210,12 @@ the dice it came from.
 6. **Time.** Each odds line ends with how long it took. Nothing should
    take much over a second now (a simulated roll stops at half a million
    dice); `odds 1000d6 ie` is a good worst case.
-8. **Width.** Every line fits an 80-column terminal.
+8. **Width.** Every line fits an 80-column terminal, including the set
+   line of `(20x4d6k3)k1`, which wraps.
+9. **Mass rolls.** `400 x atk vs 12`: one summary - average, lowest,
+   highest, passed, and counts of Critical hit / Hit / Miss adding to 400.
+   `1000 x sw6 + 1 vs 6`, `500 x vtm 6 h2 vs 3` likewise. `400 atk vs 12`
+   (no x) says to write `400 x`.
 7. **Stats.** Roll a few things (`1000d6`, `1000d20`, `4dF`, `dd66`), then
    `stats`: each kind with its rolls, average against fair, top and bottom
    faces and a verdict (`dd66` adds two d6s each time). `stats 20` draws

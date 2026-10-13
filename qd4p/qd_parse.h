@@ -49,7 +49,8 @@ extern "C" {
 /** One parsed roll: the roll itself plus what was written around it. */
 typedef struct {
     qd_roll_t roll;
-    uint8_t   repeat;                           /**< "6 x 4d6k3": 6. Otherwise 1 */
+    uint16_t  repeat;                           /**< "6 x 4d6k3": 6. Otherwise 1. Over
+                                                     QD_MAX_REPEAT: a mass roll */
     char      label[QD_MAX_ROLL_LABEL + 1];     /**< "(Bite) 1d20+5": "Bite" */
     char      comment[QD_MAX_COMMENT + 1];      /**< "1d20 ! flanking": "flanking" */
     char      die_names[QD_MAX_POOLS][QD_MAX_DIE_NAME + 1];  /**< d{name} per pool, "" if none */
@@ -99,6 +100,22 @@ int qd_parse_line(const char *text, qd_parsed_t *out, int max, qd_parse_error_t 
  *  six). Ties: as for dice, "lowest" is the earliest and "highest" the
  *  latest. `each` may be NULL. */
 qd_err_t qd_set_run(const qd_parsed_t *p, qd_set_result_t *out, qd_set_each_t each, void *ctx);
+
+/** A mass roll: many repeats counted rather than listed ("400 x atk vs 12"). */
+typedef struct {
+    uint16_t count;                             /**< rolls made */
+    bool     counting;                          /**< values are successes */
+    int64_t  sum;                               /**< of the values */
+    int32_t  lo, hi;                            /**< lowest and highest value */
+    bool     judged;                            /**< a target or system: passes and levels count */
+    uint16_t passes;
+    uint16_t level[9];                          /**< rolls with outcome level L at [L + 4] */
+} qd_mass_result_t;
+
+/** Roll a parsed roll `repeat` times (up to QD_MAX_MASS) and count: the
+ *  sum, lowest and highest value, passes and each outcome level. The same
+ *  rules as one roll, just many of them: a horde's attacks, a volley. */
+qd_err_t qd_mass_run(const qd_parsed_t *p, qd_mass_result_t *out);
 
 /** Write a parsed roll back as tidy notation ("(Bite) 1d20 + 5 ! note").
  *  Parsing what it writes gives the same roll. Returns the length. */

@@ -801,11 +801,11 @@ static bool try_repeat(ps_t *ps, bool *done)
     long n;
     if (!read_number(ps, &n))
         return false;
-    if (n < 1 || n > QD_MAX_REPEAT)
-        return fail(ps, start, j - start, "repeat 1 to %d times", QD_MAX_REPEAT);
+    if (n < 1 || n > QD_MAX_MASS)
+        return fail(ps, start, j - start, "repeat 1 to %d times", QD_MAX_MASS);
     if (ps->out->repeat != 1)
         return fail(ps, start, k + 1 - start, "only one repeat per roll");
-    ps->out->repeat = (uint8_t)n;
+    ps->out->repeat = (uint16_t)n;
     ps->i = k + 1;
     *done = true;
     return true;
@@ -917,6 +917,18 @@ static bool body(ps_t *ps)
         }
         if (c == ')')
             return fail(ps, ps->i, 1, "a ')' without its '('");
+        /* "400 atk vs 12": a number then a roll - the x is missing */
+        int d0 = start;
+        while (d0 < ps->end && ps->s[d0] == ' ') d0++;
+        int d1 = d0;
+        while (d1 < ps->end && is_digit(ps->s[d1])) d1++;
+        if (d1 > d0 && (is_alpha(c) || c == '(')) {
+            bool only_number = true;
+            for (int q = d1; q < ps->i; q++) only_number &= ps->s[q] == ' ';
+            if (only_number)
+                return fail(ps, ps->i, 1, "to roll it %.*s times, write %.*s x ...", d1 - d0, ps->s + d0,
+                            d1 - d0, ps->s + d0);
+        }
         return fail(ps, ps->i, 1, "expected + - * / vs [ ! or the end, not '%c'", c);
     }
     if (!out->roll.pool_count)
@@ -988,6 +1000,8 @@ static bool roll(ps_t *ps)
     ps->end = end;
     ps->i = close + 1;
     out->set = true;
+    if (out->repeat > QD_MAX_REPEAT)
+        return fail(ps, open, close - open + 1, "a set has at most %d rolls", QD_MAX_REPEAT);
 
     skip_space(ps);
     static const char *const words[] = { "kl", "km", "k", "dh", "d" };
@@ -1060,6 +1074,32 @@ qd_err_t qd_set_run(const qd_parsed_t *p, qd_set_result_t *out, qd_set_each_t ea
     }
     for (int k = 0; k < n; k++)
         if (out->kept[k]) out->total += out->value[k];
+    return QD_OK;
+}
+
+qd_err_t qd_mass_run(const qd_parsed_t *p, qd_mass_result_t *out)
+{
+    static qd_result_t res;
+    memset(out, 0, sizeof(*out));
+    int n = p->repeat < 1 ? 1 : p->repeat > QD_MAX_MASS ? QD_MAX_MASS : p->repeat;
+    for (int k = 0; k < n; k++) {
+        qd_err_t e = qd_roll_run(&p->roll, &res);
+        if (e)
+            return e;
+        out->counting = (res.flags & QD_RES_COUNTING) != 0;
+        int32_t v = out->counting ? res.successes : res.total;
+        out->sum += v;
+        if (!k || v < out->lo) out->lo = v;
+        if (!k || v > out->hi) out->hi = v;
+        qd_outcome_t o;
+        if (qd_sys_outcome(&p->roll, &res, &o)) {
+            out->judged = true;
+            out->passes += o.pass;
+            int l = o.level < -4 ? -4 : o.level > 4 ? 4 : o.level;
+            out->level[l + 4]++;
+        }
+    }
+    out->count = (uint16_t)n;
     return QD_OK;
 }
 

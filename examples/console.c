@@ -336,13 +336,37 @@ static void cmd_roll(char *args)
         printf("%s\n", tidy);
         uint16_t w = qd_roll_warnings(&ps->roll);
         if (w) printf("  note: %s\n", qd_warn_text(w));
+        if (ps->repeat > QD_MAX_REPEAT) {
+            /* a mass roll: counted, not listed */
+            qd_mass_result_t m;
+            uint32_t t0 = time_us_32();
+            qd_mass_run(ps, &m);
+            uint32_t us = time_us_32() - t0;
+            printf("  %u rolls: %s %.2f on average, lowest %ld, highest %ld  (%lu ms)\n", m.count,
+                   m.counting ? "successes" : "total", (double)m.sum / m.count, (long)m.lo, (long)m.hi,
+                   (unsigned long)(us / 1000));
+            if (m.judged) {
+                printf("  passed %u (%.1f%%)\n", m.passes, 100.0 * m.passes / m.count);
+                for (int l = 8; l >= 0; l--) {
+                    const char *name = qd_sys_level_name(&ps->roll, l - 4);
+                    if (m.level[l] && *name) printf("    %-20s %5u\n", name, m.level[l]);
+                }
+            }
+            continue;
+        }
         if (ps->repeat > 1 || ps->set) {
-            /* a repeat or a set: each roll, then the set's line */
+            /* a repeat or a set: each roll, then the set's line (wrapped at 80) */
             qd_set_result_t s;
             qd_set_run(ps, &s, print_each, (void *)ps);
             printf("  set:");
-            for (int i = 0; i < s.count; i++)
-                printf(s.kept[i] ? " %ld" : " (%ld)", (long)s.value[i]);
+            int col = 7;
+            for (int i = 0; i < s.count; i++) {
+                char v[16];
+                int n = snprintf(v, sizeof(v), s.kept[i] ? " %ld" : " (%ld)", (long)s.value[i]);
+                if (col + n > 76) { printf("\n      "); col = 6; }
+                printf("%s", v);
+                col += n;
+            }
             printf("  = %ld%s\n", (long)s.total, s.counting ? " successes" : "");
             continue;
         }
@@ -508,7 +532,7 @@ static void cmd_odds(char *args)
     qd_err_t e = qd_odds(&p.roll, &o);
     uint32_t us = time_us_32() - t0;
     if (e) { printf("can't: %s\n", qd_err_text(e)); return; }
-    printf("%s%s\n", tidy, p.repeat > 1 || p.set ? "   (odds for one roll)" : "");
+    printf("%s%s\n", tidy, p.repeat > 1 || p.set ? "   (odds for one of the rolls)" : "");
     if (o.method == QD_ODDS_EXACT_SUM) printf("  exact (worked out die by die)");
     else if (o.method == QD_ODDS_EXACT_ALL) printf("  exact (all %lu rolls tried)", (unsigned long)o.runs);
     else if (o.method == QD_ODDS_NORMAL) printf("  bell curve: exact average and spread, chances very close");

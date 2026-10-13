@@ -88,9 +88,15 @@
 #define QD_MAX_COMMENT          47
 #endif
 
-/** Most repeats in "6 x 4d6k3". */
+/** Most repeats listed one by one in "6 x 4d6k3", and most rolls in a
+ *  set "(6 x 4d6) k3". */
 #ifndef QD_MAX_REPEAT
 #define QD_MAX_REPEAT           20
+#endif
+
+/** Most repeats of a mass roll ("400 x atk vs 12"): counted, not listed. */
+#ifndef QD_MAX_MASS
+#define QD_MAX_MASS             1000
 #endif
 
 /** Characters in a custom die's name: "2d{Loaded d6}". */
