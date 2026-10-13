@@ -52,10 +52,36 @@ static void keep_nonzero(void)
  * likely; they're recognised by the low 32 bits and rerolled. Rerolls are
  * rare (at most n in 2^32), so it's usually one multiply and no division.
  * ======================================================================== */
+static qd_rng_script_t *script;
+
+void qd_rng_script(qd_rng_script_t *sc)
+{
+    script = sc;
+}
+
+/* A scripted draw: the script's next pick, or 0 past its end. */
+static uint32_t scripted(uint32_t n)
+{
+    qd_rng_script_t *sc = script;
+    if (sc->pos >= sc->cap) {
+        sc->over = true;
+        return 0;
+    }
+    if (sc->pos >= sc->len) {
+        sc->pick[sc->pos] = 0;
+        sc->len = (uint16_t)(sc->pos + 1);
+    }
+    sc->size[sc->pos] = n;
+    uint32_t v = sc->pick[sc->pos++];
+    return v < n ? v : 0;
+}
+
 uint32_t qd_rng_range(uint32_t n)
 {
     if (n == 0)
         return 0;
+    if (script)
+        return scripted(n);
     uint64_t m = (uint64_t)qd_rng_next32() * n;
     uint32_t low = (uint32_t)m;
     if (low < n) {

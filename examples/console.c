@@ -485,6 +485,114 @@ static void cmd_notation(char *args)
         "'parse <roll>' shows how a roll is read without rolling it.\n");
 }
 
+/* --- D7: stats for nerds and odds --------------------------------------- */
+static qd_stats_t con_stats;
+
+static void bar(double share, double biggest, int width)
+{
+    int n = biggest > 0 ? (int)(share / biggest * width + 0.5) : 0;
+    for (int i = 0; i < n; i++) putchar('#');
+}
+
+/* odds <roll>: the chance of every result, and of each outcome */
+static void cmd_odds(char *args)
+{
+    static qd_parsed_t p;
+    static qd_odds_t o;
+    qd_parse_error_t err;
+    if (!*args) { printf("usage: odds 4d6k3 | odds atk adv + 5 vs 15 | odds sw8 vs 6\n"); return; }
+    if (!qd_parse(args, &p, &err)) { print_error(args, &err); return; }
+    char tidy[160];
+    qd_format(&p, tidy, sizeof(tidy));
+    uint32_t t0 = time_us_32();
+    qd_err_t e = qd_odds(&p.roll, &o);
+    uint32_t us = time_us_32() - t0;
+    if (e) { printf("can't: %s\n", qd_err_text(e)); return; }
+    printf("%s%s\n", tidy, p.repeat > 1 || p.set ? "   (odds for one roll)" : "");
+    if (o.method == QD_ODDS_EXACT_SUM) printf("  exact (worked out die by die)");
+    else if (o.method == QD_ODDS_EXACT_ALL) printf("  exact (all %lu rolls tried)", (unsigned long)o.runs);
+    else printf("  simulated (%lu rolls): about right, not exact", (unsigned long)o.runs);
+    printf(", %lu ms\n", (unsigned long)(us / 1000));
+    printf("  %s %.2f on average, spread %.2f, from %ld to %ld\n", o.counting ? "successes:" : "total:",
+           o.mean, o.sd, (long)o.lo, (long)o.hi);
+
+    double biggest = 0;
+    for (int i = 0; i < o.bins; i++) if (o.dist[i] > biggest) biggest = o.dist[i];
+    if (o.bins <= 40) {
+        for (int i = 0; i < o.bins; i++) {
+            printf("  %5ld %6.2f%%  ", (long)(o.first + i), 100.0 * o.dist[i]);
+            bar(o.dist[i], biggest, 40);
+            printf("\n");
+        }
+    } else {
+        /* too many values to list: where the totals fall */
+        static const int pct[] = { 5, 25, 50, 75, 95 };
+        double run = o.below;
+        int k = 0;
+        printf("  ");
+        for (int i = 0; i < o.bins && k < 5; i++) {
+            run += o.dist[i];
+            while (k < 5 && run * 100 >= pct[k]) printf("%d%%: %ld  ", pct[k++], (long)(o.first + i));
+        }
+        printf("(half the rolls are at or below the 50%% value)\n");
+    }
+    if (o.judged) {
+        printf("  pass %.2f%%:", 100.0 * o.pass);
+        for (int l = 8; l >= 0; l--) {
+            const char *name = qd_sys_level_name(&p.roll, l - 4);
+            if (o.level[l] > 0 && *name) printf("  %s %.2f%%", name, 100.0 * o.level[l]);
+        }
+        printf("\n");
+    }
+}
+
+static const char *kind_name(const qd_die_stats_t *k, char *buf, int size)
+{
+    if (!k->die) snprintf(buf, (size_t)size, "d%u", k->sides);
+    else if (k->die == qd_fudge_die()) snprintf(buf, (size_t)size, "dF");
+    else if (k->die == &con_custom) snprintf(buf, (size_t)size, "d{custom}");
+    else snprintf(buf, (size_t)size, "custom die");
+    return buf;
+}
+
+/* stats | stats 20 (a d20's faces) | stats clear */
+static void cmd_stats(char *args)
+{
+    if (!strncmp(args, "clear", 5)) {
+        qd_stats_clear(&con_stats);
+        printf("cleared\n");
+        return;
+    }
+    long want = arg_num(&args, 0);
+    if (!con_stats.kinds) { printf("no dice rolled yet\n"); return; }
+    for (int i = 0; i < con_stats.kinds; i++) {
+        const qd_die_stats_t *k = &con_stats.kind[i];
+        if (want && (k->die || k->sides != want)) continue;
+        qd_stats_report_t r;
+        qd_stats_report(k, &r);
+        char name[16];
+        printf("%-10s %6lu rolls, average %.2f (fair %.2f), spread %.2f (%.2f)",
+               kind_name(k, name, sizeof(name)), (unsigned long)k->count, r.mean, r.expect_mean, r.sd, r.expect_sd);
+        if (r.verdict == QD_STATS_NO_FACES) { printf("\n"); continue; }
+        printf(", top face %lu, bottom %lu\n           ", (unsigned long)r.highest, (unsigned long)r.lowest);
+        if (r.verdict == QD_STATS_TOO_FEW)
+            printf("too few rolls to judge yet (about %d needed)\n", 5 * k->sides);
+        else
+            printf("chi-square %.1f, limit %.1f: %s\n", r.chi, r.limit,
+                   r.verdict == QD_STATS_FAIR ? "looks fair" : "odd (a fair die does this 1 time in 1000)");
+        if (want && k->faces) {
+            uint32_t most = 0;
+            for (int f = 0; f < k->sides; f++) if (k->face[f] > most) most = k->face[f];
+            for (int f = 0; f < k->sides; f++) {
+                printf("  %4d %6lu  ", f + 1, (unsigned long)k->face[f]);
+                bar(k->face[f], most, 40);
+                printf("\n");
+            }
+        }
+    }
+    if (con_stats.untracked) printf("(%lu rolls of other dice not tracked)\n", (unsigned long)con_stats.untracked);
+}
+
 /* custom <count> <face> <face> ...   face = value[*weight][/label] */
 static void cmd_custom(char *args)
 {
@@ -633,6 +741,8 @@ static const command_t commands[] = {
     { "roll",    "roll 4d6k3 (or just type 4d6k3)",             cmd_roll    },
     { "parse",   "parse <roll>: how it is read, without rolling", cmd_parse  },
     { "last",    "the last roll, dice numbered for reroll",     cmd_last    },
+    { "odds",    "odds <roll>: chance of each result and outcome", cmd_odds  },
+    { "stats",   "stats | stats 20 | stats clear: every die so far", cmd_stats },
     { "reroll",  "reroll | reroll 2 5 | reroll !=6 | reroll best/worst", cmd_reroll },
     { "notation","what you can type in a roll",                 cmd_notation },
     { "pct",     "pct [b2|p1] [n]: d100, CoC bonus/penalty dice", cmd_pct   },
@@ -699,6 +809,7 @@ int main(void)
         sleep_ms(100);
     qd_rng_init_hw();                                         /* hardware seed at boot */
     qd_parse_set_lookup(con_lookup, NULL);
+    qd_stats_watch(&con_stats);                               /* count every die from now on */
     printf("\nQD4P %s console - type help\n> ", qd_version());
 
     char line[128];

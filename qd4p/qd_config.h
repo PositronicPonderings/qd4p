@@ -103,6 +103,43 @@
 #define QD_MAX_NESTING          8
 #endif
 
+/* --- Stats for nerds and odds ------------------------------------------- */
+
+/** Kinds of die tracked by stats (d6, d20, a custom die ...). */
+#ifndef QD_STATS_KINDS
+#define QD_STATS_KINDS          16
+#endif
+
+/** Faces counted one by one per kind (bigger dice: totals only). */
+#ifndef QD_STATS_FACES
+#define QD_STATS_FACES          100
+#endif
+
+/** Exact odds: most rolls tried one by one before simulating instead. */
+#ifndef QD_ODDS_EXACT_RUNS
+#define QD_ODDS_EXACT_RUNS      50000
+#endif
+
+/** Simulated odds: rolls to try ... */
+#ifndef QD_ODDS_SAMPLES
+#define QD_ODDS_SAMPLES         10000
+#endif
+
+/** ... unless they would need more dice than this altogether. */
+#ifndef QD_ODDS_DICE_BUDGET
+#define QD_ODDS_DICE_BUDGET     2000000L
+#endif
+
+/** Exact sums: widest range of totals worked out (4 float buffers of it). */
+#ifndef QD_ODDS_SPAN
+#define QD_ODDS_SPAN            1024
+#endif
+
+/** Values in an odds result's distribution. */
+#ifndef QD_ODDS_BINS
+#define QD_ODDS_BINS            256
+#endif
+
 /* --- Dice and decks ------------------------------------------------------ */
 
 /** Faces on a custom die (matches the Dice Roller settings store). */

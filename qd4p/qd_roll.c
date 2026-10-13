@@ -466,23 +466,53 @@ static int add_record(const pool_ctx_t *c, int16_t value, uint16_t face, uint16_
     return work_n++;
 }
 
+static qd_observer_t observer;
+static void *observer_ctx;
+
+qd_observer_t qd_roll_observe(qd_observer_t fn, void *ctx, void **old_ctx)
+{
+    qd_observer_t old = observer;
+    if (old_ctx) *old_ctx = observer_ctx;
+    observer = fn;
+    observer_ctx = ctx;
+    return old;
+}
+
+static void observe(uint16_t sides, const qd_die_t *die, uint16_t face, int16_t value)
+{
+    if (observer)
+        observer(sides, die, face, value, observer_ctx);
+}
+
 /* One fresh value for a die of the pool: the only place dice are drawn. */
 static void draw(const qd_pool_t *p, qd_die_result_t *d)
 {
     if (p->digits) {
         int v = 0;
-        for (int i = 0; i < p->digits; i++)
-            v = v * 10 + (int)qd_rng_range(p->digit_sides[i]) + 1;
+        for (int i = 0; i < p->digits; i++) {
+            int digit = (int)qd_rng_range(p->digit_sides[i]) + 1;
+            observe(p->digit_sides[i], NULL, (uint16_t)(digit - 1), (int16_t)digit);
+            v = v * 10 + digit;
+        }
         d->value = (int16_t)v;
         d->face = (uint16_t)v;
     } else if (p->die) {
         qd_face_roll_t f = qd_die_roll(p->die);
         d->value = f.value;
         d->face = f.face;
+        observe(p->die->sides, p->die, f.face, f.value);
     } else {
         d->face = (uint16_t)qd_rng_range(p->sides);
         d->value = (int16_t)(d->face + 1);
+        observe(p->sides, NULL, d->face, d->value);
     }
+}
+
+/* A percentile digit as the d10 shows it: 0 reads as 10. */
+static void observe_d10(uint8_t digit)
+{
+    int v = digit ? digit : 10;
+    observe(10, NULL, (uint16_t)(v - 1), (int16_t)v);
 }
 
 static int add_die(const pool_ctx_t *c, uint16_t parent, uint16_t flags)
@@ -613,6 +643,8 @@ static void run_pool(const qd_roll_t *r, uint8_t index, qd_result_t *res)
         for (int i = 0; i < p->count; i++) {
             qd_percentile_t pc;
             qd_roll_percentile(p->pct_bonus, &pc);
+            observe_d10(pc.units);
+            for (int k = 0; k < pc.tens_count; k++) observe_d10(pc.tens[k]);
             int main = add_record(&c, pc.result, (uint16_t)(pc.result - 1), QD_NO_PARENT, 0);
             for (int k = 0; k < pc.tens_count; k++) {
                 if (k == pc.kept) continue;

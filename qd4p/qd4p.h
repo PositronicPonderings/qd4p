@@ -19,7 +19,9 @@
  *     roll engine      qd_roll_*     (D3)
  *     parser           qd_parse, qd_format  (D4; notation in docs/notation.md)
  *     game systems     qd_sys_*, qd_sys_outcome  (D5)
- *     extras           rerolls, sets, tables, odds, stats, fair mode
+ *     rerolls, sets    qd_reroll_*, qd_set_run  (D6)
+ *     stats, odds      qd_stats_*, qd_odds  (D7)
+ *     extras           tables, fair mode
  *
  * Everything except the hardware entropy sources is portable C11: it runs
  * on a PC as well as the Pico, which is how it is tested.
@@ -40,6 +42,8 @@
 #include "qd_roll.h"
 #include "qd_parse.h"
 #include "qd_sys.h"
+#include "qd_stats.h"
+#include "qd_odds.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -48,7 +52,7 @@ extern "C" {
 /** Library version as numbers, for #if checks. */
 #define QD_VERSION_MAJOR 0
 #define QD_VERSION_MINOR 0
-#define QD_VERSION_PATCH 7
+#define QD_VERSION_PATCH 8
 
 /** Library version as text, e.g. "0.0.1". */
 const char *qd_version(void);

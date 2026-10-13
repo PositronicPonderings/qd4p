@@ -433,6 +433,17 @@ int qd_reroll_matching(const qd_roll_t *r, qd_result_t *res, int pool, qd_test_t
  *  roll's total. */
 bool qd_reroll_keep(const qd_roll_t *r, qd_result_t *res, bool higher);
 
+/* --- Watching every die ----------------------------------------------------
+ * An observer is told about every die the engine rolls - kept or not,
+ * explosions and rerolls included - with the die it was rolled on. Stats
+ * for nerds (qd_stats.h) uses it. Percentile dice are reported as the two
+ * d10s they are (0 read as 10), digit dice as one die per digit. */
+typedef void (*qd_observer_t)(uint16_t sides, const qd_die_t *die, uint16_t face, int16_t value,
+                              void *ctx);
+
+/** Set the observer (NULL for none). Returns the one it replaces. */
+qd_observer_t qd_roll_observe(qd_observer_t fn, void *ctx, void **old_ctx);
+
 /** The lowest and highest single value a pool's die can show. */
 void qd_pool_range(const qd_pool_t *p, int16_t *lo, int16_t *hi);
 

@@ -189,3 +189,24 @@ the dice it came from.
    kept the ..." and the kept roll shown.
 7. **Refusals.** `reroll 99` says the die can't be rerolled; `(6x4d6)k7`
    says the set has only 6 rolls.
+
+## D7 Odds and stats for nerds
+
+1. **Exact odds.** `odds 4d6k3`: "exact (all 1296 rolls tried)", average
+   12.24, a bar chart from 3 to 18 peaking at 13 (13.27%), 18 at 1.62%.
+   `odds 3d6`: "worked out die by die", 10 and 11 at 12.50%.
+2. **Outcomes.** `odds atk adv + 5 vs 15`: pass 79.75%, Critical hit 9.75%,
+   Hit 70.00%, Miss 20.25%. `odds coc 65 b1`: Critical 1.90%, Extreme
+   22.20%, Hard 29.50%, Regular 33.90%, Failure 12.40%, Fumble 0.10%.
+3. **Simulated.** `odds sw8 vs 6`: "simulated (10000 rolls)", pass near
+   49%. `odds vtm 6 h2 vs 3`: Messy critical and Bestial failure chances.
+4. **Big sums.** `odds 100d6`: exact, average 350.00, from 100 to 600, and
+   the 5% / 25% / 50% / 75% / 95% points (322 338 350 362 378).
+5. **Odds don't disturb rolls.** `seed 42`, `odds sw8`, then `next 1`:
+   1776835114, the same as without the odds.
+6. **Time.** Each odds line ends with how long it took: note the slowest
+   (likely `odds 5d6 k3`, all 7,776 rolls tried, or a simulated one).
+7. **Stats.** Roll a few things (`1000d6`, `1000d20`, `4dF`, `dd66`), then
+   `stats`: each kind with its rolls, average against fair, top and bottom
+   faces and a verdict (`dd66` adds two d6s each time). `stats 20` draws
+   the d20's faces. `stats clear` starts again.

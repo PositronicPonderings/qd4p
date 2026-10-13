@@ -175,6 +175,48 @@ const char *qd_sys_name(int id)
     }
 }
 
+const char *qd_sys_level_name(const qd_roll_t *r, int level)
+{
+    switch (r->sys.id) {
+    case QD_SYS_DND:
+        if (r->sys.kind == QD_DND_ATTACK)
+            return level == QD_LVL_CRIT ? "Critical hit" : level == QD_LVL_PASS ? "Hit" :
+                   level == QD_LVL_FAIL ? "Miss" : "";
+        return level == QD_LVL_PASS ? "Success" : level == QD_LVL_FAIL ? "Failure" : "";
+    case QD_SYS_SW:
+        return level == QD_LVL_CRIT_FAIL ? "Critical failure" : level == QD_LVL_FAIL ? "Failure" :
+               level == QD_LVL_PASS ? "Success" : level == QD_LVL_RAISE ? "Raise" : "";
+    case QD_SYS_COC:
+        switch (level) {
+        case QD_COC_FUMBLE: return "Fumble";
+        case QD_COC_FAILURE: return "Failure";
+        case QD_COC_REGULAR_SUCCESS: return "Regular success";
+        case QD_COC_HARD_SUCCESS: return "Hard success";
+        case QD_COC_EXTREME_SUCCESS: return "Extreme success";
+        case QD_COC_CRITICAL: return "Critical success";
+        default: return "";
+        }
+    case QD_SYS_FATE:
+        return level == QD_FATE_FAIL ? "Fail" : level == QD_FATE_TIE ? "Tie" :
+               level == QD_FATE_SUCCESS ? "Success" : level == QD_FATE_STYLE ? "Success with style" : "";
+    case QD_SYS_VTM:
+        switch (level) {
+        case QD_VTM_BESTIAL: return "Bestial failure";
+        case QD_VTM_TOTAL_FAIL: return "Total failure";
+        case QD_VTM_FAIL: return "Failure";
+        case QD_VTM_WIN: return "Win";
+        case QD_VTM_MESSY: return "Messy critical";
+        case QD_VTM_CRITICAL: return "Critical";
+        default: return "";
+        }
+    case QD_SYS_DCC:
+        return level == QD_LVL_CRIT_FAIL ? "Fumble" : level == QD_LVL_FAIL ? "Failure" :
+               level == QD_LVL_PASS ? "Success" : level == QD_LVL_CRIT ? "Critical" : "";
+    default:
+        return level == QD_LVL_PASS ? "Pass" : level == QD_LVL_FAIL ? "Fail" : "";
+    }
+}
+
 const char *qd_fate_ladder(int v)
 {
     static const char *const names[] = { "Terrible", "Poor", "Mediocre", "Average", "Fair",

@@ -159,6 +159,11 @@ int qd_dcc_chain(int sides, int steps);
  *  "vs". */
 bool qd_sys_outcome(const qd_roll_t *r, const qd_result_t *res, qd_outcome_t *out);
 
+/** A short name for an outcome level of this roll's system: "Critical
+ *  hit", "Raise", "Hard success", "Messy critical" ... ("" if none). For
+ *  showing odds: qd_odds_t.level[L + 4] is the chance of level L. */
+const char *qd_sys_level_name(const qd_roll_t *r, int level);
+
 /** "D&D 5e", "Savage Worlds", ... ("" for none). */
 const char *qd_sys_name(int id);
 

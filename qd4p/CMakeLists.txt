@@ -22,6 +22,8 @@ add_library(qd4p STATIC
     qd_roll.c             # roll engine: pools, modifiers, sums, counting (portable)
     qd_parse.c            # dice notation to a roll and back (portable)
     qd_sys.c              # game systems: shortcuts and outcomes (portable)
+    qd_stats.c            # stats for nerds: tallies per die, fairness (portable)
+    qd_odds.c             # odds: exact or simulated (portable)
     qd_entropy_pico.c     # Pico-only: hardware seed, TRNG/ADC/event sources
 )
 target_include_directories(qd4p PUBLIC ${CMAKE_CURRENT_LIST_DIR})

@@ -88,6 +88,23 @@ void qd_rng_save(uint32_t state[4]);
  *  state (which would get stuck) is quietly made non-zero. */
 void qd_rng_restore(const uint32_t state[4]);
 
+/** Scripted draws, for working out exact odds: while a script is set,
+ *  qd_rng_range(n) returns the script's next pick (and notes n) instead of
+ *  a random number; past the end of the script it returns 0 and extends
+ *  it. qd_odds uses this to visit every possible roll once. Not for
+ *  ordinary use. */
+typedef struct {
+    uint32_t *pick;                     /**< the values to return, in order */
+    uint32_t *size;                     /**< filled in: the n each draw asked for */
+    uint16_t  len;                      /**< picks set so far */
+    uint16_t  cap;                      /**< room in pick[] and size[] */
+    uint16_t  pos;                      /**< draws made in this run */
+    bool      over;                     /**< a run needed more than cap draws */
+} qd_rng_script_t;
+
+/** Start (or, with NULL, stop) scripted draws. */
+void qd_rng_script(qd_rng_script_t *script);
+
 /** How many qd_rng_stir calls have changed the state since the last seed
  *  (shown by apps as "entropy added: 37 times"). */
 uint32_t qd_rng_stir_count(void);

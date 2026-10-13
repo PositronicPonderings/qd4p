@@ -235,11 +235,16 @@ reports matching dice.
 - **Random tables:** a die expression plus ranged entries, nesting to a depth
   cap. Text files converted into an asset pack on the PC (decided for v1);
   QD4P only needs a pointer to the table bytes.
-- **Odds:** `qd_odds(&roll, test)`; exact for sums of dice, otherwise 10,000
-  simulated rolls (marked approximate).
-- **Stats for nerds:** per die type count, sum, sum of squares, min, max,
-  face histogram; mean, standard deviation and a chi-square "is this die
-  behaving?" check.
+- **Odds (D7):** `qd_odds(&roll, &odds)`: exact by convolution for sums
+  and success counts of plain dice; exact by trying every roll (scripted
+  generator draws, each weighted) up to 50,000 rolls; otherwise 10,000
+  simulated rolls, marked approximate. Mean, spread, range, the chance of
+  each value, of passing, and of each outcome level. The generator and
+  stats are left untouched. See odds-and-stats.md.
+- **Stats for nerds (D7):** an observer on the engine counts every die
+  rolled, by kind: count, sum, sum of squares, min, max, face histogram;
+  mean and spread against a fair die's, natural highs and lows, and a
+  chi-square check (table limits at p = 0.001).
 
 ## Repo, footprint and docs
 
@@ -266,7 +271,7 @@ reports matching dice.
 6. **D5 Outcomes and systems.** Done: `qd_sys.h`.
 7. **D6 Rerolls and roll sets.** Done: `qd_reroll_*` in `qd_roll.h`,
    `qd_set_run` and `(N x roll) kN` in `qd_parse.h`.
-8. **D7 Stats for nerds and odds.**
+8. **D7 Stats for nerds and odds.** Done: `qd_stats.h`, `qd_odds.h`.
 9. **D8 Random tables.**
 10. **D9 Fair mode.**
 11. **D10 Manual and v1.0.**
