@@ -23,7 +23,7 @@
  *     stats, odds      qd_stats_*, qd_odds  (D7)
  *     dice in text     qd_expand, qd_roll_text, qd_pick_range  (D8;
  *                      a table system built on them: examples/tables)
- *     extras           fair mode
+ *     fair mode        qd_fair_*     (D9: rolls players can check afterwards)
  *
  * Everything except the hardware entropy sources is portable C11: it runs
  * on a PC as well as the Pico, which is how it is tested.
@@ -47,6 +47,7 @@
 #include "qd_stats.h"
 #include "qd_odds.h"
 #include "qd_text.h"
+#include "qd_fair.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -55,7 +56,7 @@ extern "C" {
 /** Library version as numbers, for #if checks. */
 #define QD_VERSION_MAJOR 0
 #define QD_VERSION_MINOR 0
-#define QD_VERSION_PATCH 9
+#define QD_VERSION_PATCH 10
 
 /** Library version as text, e.g. "0.0.1". */
 const char *qd_version(void);

@@ -11,6 +11,9 @@
  *
  * Each milestone adds its commands to the table at the bottom of this file;
  * the line editing and command lookup above it stay the same.
+ *
+ * The same file builds on a PC (examples/pc/build.sh): there it is the
+ * fair-mode checker, with every command working exactly as on the device.
  */
 #include <ctype.h>
 #include <math.h>
@@ -26,6 +29,16 @@
 #include "qd_entropy_pico.h"
 #include "tables/table.h"          /* the example table system (not part of QD4P) */
 #include "tables/sample_tables.h"  /* built from sample_tables.txt by tables/tables.py */
+
+/* Echo: on the device each key is echoed as it's typed. The PC build
+ * (examples/pc) turns that off - a terminal echoes for itself - and echoes
+ * whole lines only when they come from a file, so a log shows what ran. */
+#ifndef ECHO_KEYS
+#define ECHO_KEYS  1
+#endif
+#ifndef ECHO_LINES
+#define ECHO_LINES 0
+#endif
 
 /* ------------------------------------------------------------------------ */
 /* Commands                                                                 */
@@ -55,6 +68,24 @@ static void cmd_limits(char *args)
     printf("cards per deck          %d\n", QD_MAX_CARDS);
 }
 
+/* --- D9: fair mode, the part every rolling command uses ---------------------
+ *
+ * Each command that rolls calls fair_mark() just before it rolls. In a fair
+ * session that takes the next action number and prints it ("fair #17").
+ * When checking a revealed key, a line may start with its number, "#17
+ * 4d6k3", and fair_mark() uses that number instead.
+ */
+static uint32_t fair_at;               /* "#17 ..." when checking: 17, else 0 */
+
+static void fair_mark(void)
+{
+    if (!qd_fair_is_on()) return;
+    uint32_t n;
+    if (fair_at) { qd_fair_begin_at(fair_at); n = fair_at; fair_at = 0; }
+    else n = qd_fair_begin();
+    printf("fair #%lu\n", (unsigned long)n);
+}
+
 /* --- D1: randomness ------------------------------------------------------ */
 
 /* Next whole number from an argument string, or `fallback` if there isn't one. */
@@ -71,15 +102,18 @@ static long arg_num(char **args, long fallback)
 static void cmd_rng(char *args)
 {
     (void)args;
-    printf("mode: %s, entropy stirred in %lu times since the last seed\n",
+    uint32_t stirred = qd_rng_stir_count();
+    printf("mode: %s, entropy stirred in %lu time%s since the last seed\n",
+           qd_fair_is_on() ? "FAIR (held: rolls come from the session key)" :
            qd_rng_is_replay() ? "REPLAY (same numbers every time)" : "live",
-           (unsigned long)qd_rng_stir_count());
+           (unsigned long)stirred, stirred == 1 ? "" : "s");
 }
 
 static void cmd_seed(char *args)
 {
     long n = arg_num(&args, -1);
     if (n < 0) { printf("usage: seed <number>   (replay mode; 'live' to leave)\n"); return; }
+    if (qd_fair_is_on()) { printf("ignored: fair mode is on ('fair end' first)\n"); return; }
     qd_rng_seed_fixed((uint64_t)n);
     printf("replay mode, seed %ld\n", n);
 }
@@ -87,6 +121,7 @@ static void cmd_seed(char *args)
 static void cmd_live(char *args)
 {
     (void)args;
+    if (qd_fair_is_on()) { printf("ignored: fair mode is on ('fair end' first)\n"); return; }
     qd_rng_init_hw();
     printf("live: seeded from the hardware TRNG\n");
 }
@@ -135,11 +170,13 @@ static void cmd_test(char *args)
 static void cmd_stir(char *args)
 {
     if (!*args) { printf("usage: stir <any text>\n"); return; }
-    printf(qd_rng_stir(args, strlen(args)) ? "stirred in\n" : "ignored: replay mode is on\n");
+    printf(qd_rng_stir(args, strlen(args)) ? "stirred in\n" :
+           qd_fair_is_on() ? "ignored: fair mode is on\n" : "ignored: replay mode is on\n");
 }
 
 static void cmd_trng(char *args)
 {
+    if (qd_fair_is_on()) { printf("ignored: fair mode is on\n"); return; }
     long n = arg_num(&args, 16);
     printf("%lu TRNG readings stirred in\n",
            (unsigned long)qd_rng_stir_source(&qd_entropy_trng, (uint32_t)n));
@@ -152,6 +189,7 @@ static void cmd_adc(char *args)
         printf("usage: adc <gpio 26-29> [samples]   (something must be wired to the pin)\n");
         return;
     }
+    if (qd_fair_is_on()) { printf("ignored: fair mode is on\n"); return; }
     static qd_entropy_adc_t adc;
     printf("%lu ADC readings from GPIO %ld stirred in\n",
            (unsigned long)qd_rng_stir_source(qd_entropy_adc(&adc, (unsigned)gpio), (uint32_t)n),
@@ -169,6 +207,7 @@ static void cmd_tap(char *args)
             taps++;
         }
     printf("%lu taps stirred in%s\n", (unsigned long)taps,
+           qd_fair_is_on() ? " (ignored: fair mode is on)" :
            qd_rng_is_replay() ? " (ignored: replay mode is on)" : "");
 }
 
@@ -183,6 +222,7 @@ static void cmd_pct(char *args)
         bonus += (kind == 'b' || kind == 'B') ? (int)n : -(int)n;
     }
     long count = arg_num(&args, 1);
+    fair_mark();
     for (long i = 0; i < count; i++) {
         qd_percentile_t p;
         qd_roll_percentile(bonus, &p);
@@ -331,6 +371,7 @@ static void cmd_roll(char *args)
     qd_parse_error_t err;
     int n = qd_parse_line(args, rolls, 4, &err);
     if (n < 0) { print_error(args, &err); return; }
+    fair_mark();                            /* one number for the whole line */
     for (int k = 0; k < n; k++) {
         const qd_parsed_t *ps = &rolls[k];
         char tidy[160];
@@ -407,6 +448,7 @@ static void cmd_last(char *args)
 static void cmd_reroll(char *args)
 {
     if (!have_last) { printf("nothing rolled yet\n"); return; }
+    fair_mark();
     qd_err_t e = QD_OK;
     bool keep = false;
     while (*args == ' ') args++;
@@ -665,6 +707,7 @@ static void cmd_table(char *args)
             if (!strncasecmp(tbl_name(&con_tables, i), args, strlen(args))) k = i;
     }
     if (k < 0 || k >= con_tables.count) { printf("no such table - try 'tables'\n"); return; }
+    fair_mark();
     static tbl_result_t r;
     tbl_roll(&con_tables, k, &r);
     printf("%s\n", tbl_name(&con_tables, k));
@@ -713,6 +756,7 @@ static void cmd_custom(char *args)
     con_custom = die;                       /* now usable as d{custom} in rolls */
     con_custom_ready = true;
     if (count == 0) { printf("saved: roll it with d{custom}, e.g. 3d{custom} k2\n"); return; }
+    fair_mark();
     if (count <= 60) {
         for (long i = 0; i < count; i++) {
             qd_face_roll_t r = qd_die_roll(&die);
@@ -781,6 +825,7 @@ static void cmd_deal(char *args)
     long n = arg_num(&args, 1);
     if (n < 1 || n > 255) { printf("usage: deal [cards]\n"); return; }
     static qd_card_draw_t hand[255];
+    fair_mark();
     bool reshuffled = (deck.policy & QD_RESHUFFLE_AFTER_TRIGGER) && deck.triggered;
     int got = qd_deck_deal(&deck, hand, (int)n);
     if (reshuffled) printf("(reshuffled: a joker came up last deal)\n");
@@ -812,6 +857,95 @@ static void cmd_policy(char *args)
     deck_status();
 }
 
+/* --- D9: fair mode ---------------------------------------------------------
+ *
+ * fair                  start a session (or, if one is on, show it)
+ * fair end              end it and show the key
+ * fair check <words>    check a revealed key: then "#17 4d6k3" repeats #17
+ */
+static uint8_t fair_print_at_start[QD_FAIR_PRINT_BYTES];
+static bool    fair_checking;          /* the key was typed in: checking, not live */
+
+/* 16 words on two lines of 8 */
+static void print_key(const uint8_t *key)
+{
+    char line[QD_FAIR_TEXT];
+    qd_fair_words(key, 8, line, sizeof(line));
+    printf("  %s\n", line);
+    qd_fair_words(key + 8, 8, line, sizeof(line));
+    printf("  %s\n", line);
+}
+
+static void cmd_fair(char *args)
+{
+    char words[QD_FAIR_TEXT];
+    if (!*args) {
+        if (qd_fair_is_on()) {
+            qd_fair_fingerprint_words(words, sizeof(words));
+            if (fair_checking) {
+                printf("checking a fair session; its fingerprint: %s\n", words);
+                printf("type actions as #3 4d6k3; 'fair end' when done\n");
+            } else {
+                printf("fair mode is on; fingerprint: %s\n", words);
+                printf("last action #%lu; 'fair end' shows the key\n", (unsigned long)qd_fair_count());
+            }
+            return;
+        }
+        qd_fair_start();
+        fair_checking = false;
+        qd_fair_fingerprint(fair_print_at_start);
+        qd_fair_fingerprint_words(words, sizeof(words));
+        printf("fair mode on. The fingerprint - everyone write it down now:\n");
+        printf("  %s\n", words);
+        printf("Each roll, reroll, deal and table roll is numbered from #1.\n");
+        printf("'fair end' shows the key; check any action with it afterwards.\n");
+        return;
+    }
+    if (!strcmp(args, "end")) {
+        uint8_t key[QD_FAIR_KEY_BYTES];
+        uint32_t last = qd_fair_count();
+        if (!qd_fair_end(key)) { printf("fair mode is off\n"); return; }
+        if (fair_checking) {
+            fair_checking = false;
+            printf("done checking; back to live rolls\n");
+            return;
+        }
+        printf("fair mode off after %lu action%s. The key (16 words):\n", (unsigned long)last,
+               last == 1 ? "" : "s");
+        print_key(key);
+        qd_fair_words(fair_print_at_start, QD_FAIR_PRINT_BYTES, words, sizeof(words));
+        printf("Its fingerprint, shown at the start: %s\n", words);
+        printf("To check: 'fair check' and the 16 words, then each action with its\n");
+        printf("number, e.g. #3 4d6k3   (the PC build of this console does the same)\n");
+        memset(key, 0, sizeof(key));
+        return;
+    }
+    if (!strncmp(args, "check", 5) && (args[5] == ' ' || !args[5])) {
+        uint8_t key[QD_FAIR_KEY_BYTES];
+        int n = qd_fair_read_words(args + 5, key, QD_FAIR_KEY_BYTES);
+        if (n != QD_FAIR_KEY_BYTES) {
+            if (n < 0) printf("word %d isn't one of the fair-mode words\n", -n);
+            else printf("usage: fair check <the 16 key words>   (got %d)\n", n);
+            return;
+        }
+        if (qd_fair_is_on() && !fair_checking) {
+            printf("a live session is running: 'fair end' it first\n");
+            return;
+        }
+        qd_fair_start_key(key);
+        fair_checking = true;
+        qd_fair_fingerprint(fair_print_at_start);
+        qd_fair_fingerprint_words(words, sizeof(words));
+        printf("checking with this key. Its fingerprint:\n  %s\n", words);
+        printf("If that matches the one written down at the start, the key is the\n");
+        printf("session's. Now type each action with its number, in any order:\n");
+        printf("  #3 4d6k3   #4 reroll 2   #7 table forest   (rerolls and deals need\n");
+        printf("  the actions before them typed first). 'fair end' when done.\n");
+        return;
+    }
+    printf("usage: fair | fair end | fair check <16 words>\n");
+}
+
 static const command_t commands[] = {
     { "help",    "this list",                                   cmd_help    },
     { "version", "which QD4P this is",                          cmd_version },
@@ -840,6 +974,7 @@ static const command_t commands[] = {
     { "deal",    "deal [n]: one deal of n cards",               cmd_deal    },
     { "shuffle", "put every card back",                         cmd_shuffle },
     { "policy",  "policy every/empty/joker/none: reshuffle rules", cmd_policy },
+    { "fair",    "fair | fair end | fair check <words>: checkable rolls", cmd_fair },
 };
 #define COMMAND_COUNT (sizeof(commands) / sizeof(commands[0]))
 
@@ -853,9 +988,30 @@ static void cmd_help(char *args)
 /* ------------------------------------------------------------------------ */
 /* Line input and dispatch                                                  */
 /* ------------------------------------------------------------------------ */
+static void run_command(char *line);
+
 static void run_line(char *line)
 {
     while (*line == ' ') line++;
+    if (*line == '#' && isdigit((unsigned char)line[1])) {
+        /* "#17 4d6k3": checking a fair session, action 17 */
+        char *end;
+        unsigned long n = strtoul(line + 1, &end, 10);
+        if (!qd_fair_is_on() || !qd_fair_begin_at(qd_fair_count())) {
+            printf("#number is for checking a fair session: 'fair check <key words>' first\n");
+            return;
+        }
+        if (n == 0 || n > 0xFFFFFFFFul) { printf("actions are numbered from #1\n"); return; }
+        fair_at = (uint32_t)n;
+        line = end;
+        while (*line == ' ') line++;
+    }
+    run_command(line);
+    fair_at = 0;                            /* used, or the command didn't roll */
+}
+
+static void run_command(char *line)
+{
     if (!*line) return;
     char *args = strchr(line, ' ');
     if (args) {
@@ -908,6 +1064,7 @@ int main(void)
         int c = getchar_timeout_us(10000);
         if (c == PICO_ERROR_TIMEOUT) continue;
         if (c == '\r' || c == '\n') {
+            if (ECHO_LINES) printf("%.*s", (int)n, line);
             printf("\n");
             line[n] = '\0';
             run_line(line);
@@ -915,10 +1072,10 @@ int main(void)
             printf("> ");
         } else if ((c == 8 || c == 127) && n > 0) {
             n--;
-            printf("\b \b");
+            if (ECHO_KEYS) printf("\b \b");
         } else if (c >= 0x20 && c < 0x7F && n < sizeof(line) - 1) {
             line[n++] = (char)c;
-            putchar(c);
+            if (ECHO_KEYS) putchar(c);
         }
     }
 }

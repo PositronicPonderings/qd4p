@@ -8,8 +8,9 @@ criticals so your program doesn't have to.
 Work in progress: randomness, dice and decks, the roll engine, the dice
 notation parser and the game systems (D&D 5e, Savage Worlds, Call of
 Cthulhu 7e, FATE, Vampire 5e, DCC), rerolls, roll sets, odds and stats
-for nerds and dice in text (the building blocks for random tables) are
-done; fair mode is next. The layers, each usable on its own:
+for nerds, dice in text (the building blocks for random tables) and fair
+mode are done; the manual and v1.0 are next. The layers, each usable on
+its own:
 
 | Layer | What it does |
 |---|---|
@@ -18,13 +19,14 @@ done; fair mode is next. The layers, each usable on its own:
 | Roll engine | Pools, keep/drop, exploding, rerolls, success counting, buckets, big-roll summaries |
 | Parser | Dice notation text to a compiled roll, with readable error messages |
 | Game systems | D&D 5e, Savage Worlds, Call of Cthulhu 7e, FATE, Vampire 5e, DCC |
-| Extras | Rerolls, roll sets, random tables, odds, stats for nerds, fair mode |
+| Extras | Rerolls, roll sets, random tables, odds, stats for nerds |
+| Fair mode | Every roll numbered and fixed by a secret key, revealed at the end so players can check any roll |
 
 Everything except the hardware entropy sources is portable C, built and
 tested on a PC as well as the Pico. No dynamic memory. No dependencies
 beyond the Pico SDK.
 
-Dice notation: [docs/notation.md](docs/notation.md). Odds and stats: [docs/odds-and-stats.md](docs/odds-and-stats.md). Random tables: an example system in [examples/tables](examples/tables/README.md). Design: [docs/design.md](docs/design.md). What to check on the Pico after each milestone: [docs/hardware-checks.md](docs/hardware-checks.md).
+Dice notation: [docs/notation.md](docs/notation.md). Odds and stats: [docs/odds-and-stats.md](docs/odds-and-stats.md). Random tables: an example system in [examples/tables](examples/tables/README.md). Fair mode: [docs/fair-mode.md](docs/fair-mode.md). Design: [docs/design.md](docs/design.md). What to check on the Pico after each milestone: [docs/hardware-checks.md](docs/hardware-checks.md).
 
 ## Build and try it
 
@@ -47,6 +49,13 @@ sh tests/host/run_tests.sh
 ```
 
 Needs a C compiler and python3; no Pico.
+
+The console also builds for a PC, where it checks fair-mode sessions:
+
+```
+sh examples/pc/build.sh
+examples/pc/qd4p_pc
+```
 
 ## Using QD4P in your project
 

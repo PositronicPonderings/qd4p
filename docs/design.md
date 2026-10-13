@@ -84,12 +84,18 @@ time; nothing can make it less random than the hardware seed alone.
 - **User seed:** stirred in like any other entropy.
 - **Replay mode:** `qd_rng_seed_fixed(seed)` makes every roll reproducible,
   for tests, bug reports and teaching. The app should show when it is on.
-- **Fair mode (v1, the lighter promise):** at session start a secret
-  128-bit key is chosen and its fingerprint shown. Rolls are derived from
-  the key and a roll counter. At session end the key is revealed; anyone
-  with the PC tool can replay a recorded session (the rolls written down at
-  the table, in order) and confirm every result. Exporting the device's own
-  roll log is a later option. Stirring is disabled while fair mode is on.
+- **Fair mode (D9, the lighter promise):** at session start a secret
+  128-bit key is chosen and its fingerprint shown as six words. Each action
+  (roll, reroll, deal, table roll) gets the next number, and its rolls come
+  from SHA-256 of the key and that number, so any action can be checked on
+  its own. At session end the key is revealed as sixteen words; the
+  console built for a PC (`examples/pc`) replays any action from its
+  number and confirms the result. Stirring, reseeding and replay are
+  ignored while fair mode is on. Decided at D9: no player input into the
+  key (so it shows the rolls weren't changed, not that the firmware is
+  honest); the checker is the console itself, so it can't disagree with
+  the device. Exporting the device's own roll log is a later option.
+  Details: [fair-mode.md](fair-mode.md).
 
 ## Dice and decks
 
@@ -283,7 +289,8 @@ reports matching dice.
 8. **D7 Stats for nerds and odds.** Done: `qd_stats.h`, `qd_odds.h`.
 9. **D8 Random tables.** Done: `qd_text.h` in the library; the table
    system as an example in `examples/tables/`.
-10. **D9 Fair mode.**
+10. **D9 Fair mode.** Done: `qd_fair.h`, [fair-mode.md](fair-mode.md),
+    the PC checker in `examples/pc`.
 11. **D10 Manual and v1.0.**
 
 ## Still open

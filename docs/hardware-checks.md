@@ -243,3 +243,32 @@ for six built-in sample tables (`examples/tables/sample_tables.txt`).
 6. **On the PC** (optional): `python3 examples/tables/tables.py check
    examples/tables/sample_tables.txt` says OK; `dump` of a built asset
    gives the text back.
+
+## D9 Fair mode
+
+Full guide: [fair-mode.md](fair-mode.md). Steps 1-5 on the Pico, step 6 on
+a PC.
+
+1. **Start.** `fair`: six words of fingerprint. Write them down. `fair`
+   again shows the same words and "last action #0".
+2. **Numbered actions.** `4d6k3`, `atk +5 vs 15`, `reroll`, `table
+   forest`, `deck sw`, `deal 5`, `pct b1`: each roll, reroll, table roll,
+   deal and pct starts with `fair #1`, `fair #2`, ... (`deck sw` has no
+   number: it doesn't roll). Note the numbers and results.
+3. **Held.** `stir hello`, `trng`, `seed 4` and `live` all say they're
+   ignored while fair mode is on; `rng` says FAIR. `#2 1d20` is refused
+   (only for checking). `odds 4d6k3` works and doesn't disturb anything.
+4. **End.** `fair end`: sixteen words of key, and the fingerprint again
+   (the same six words as step 1). `rng` is back to live, and `stir`
+   works again.
+5. **Check on the device.** `fair check` and the sixteen words (first
+   three letters of each is enough): the same fingerprint. Then repeat the
+   actions from step 2 with their numbers, e.g. `#1 4d6k3`, `#2 atk +5 vs
+   15`, `#3 reroll`, in any order (but `deck sw` before the deals, and the
+   deals in order): identical dice and results. `#1 4d6` (a different
+   roll) gives something else. `fair end` says "done checking".
+6. **Check on a PC.** `sh examples/pc/build.sh`, then
+   `examples/pc/qd4p_pc` and the same `fair check ...` and `#N` lines as
+   step 5: the same results as the Pico. (Pasting a list of commands, or
+   `qd4p_pc < file.txt`, works too.)
+

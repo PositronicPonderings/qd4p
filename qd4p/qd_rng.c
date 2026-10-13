@@ -21,6 +21,7 @@
  * ======================================================================== */
 static uint32_t s[4] = { 0x9E3779B9u, 0x243F6A88u, 0xB7E15162u, 0x6A09E667u };
 static bool     replay;
+static bool     held;           /* fair mode: the state belongs to qd_fair */
 static uint32_t stirs;
 
 static inline uint32_t rotl(uint32_t x, int k) { return (x << k) | (x >> (32 - k)); }
@@ -135,7 +136,7 @@ static void diffuse(void)
 
 bool qd_rng_stir(const void *bytes, size_t len)
 {
-    if (replay || !bytes || !len)
+    if (replay || held || !bytes || !len)
         return false;
     const uint8_t *p = (const uint8_t *)bytes;
     uint32_t position = 0;     /* depends only on state + input, so a saved
@@ -185,6 +186,8 @@ static uint64_t splitmix64(uint64_t *x)
 
 void qd_rng_seed_fixed(uint64_t seed)
 {
+    if (held)                                         /* fair mode is on: ignored */
+        return;
     uint64_t x = seed;
     uint64_t a = splitmix64(&x), b = splitmix64(&x);
     s[0] = (uint32_t)a; s[1] = (uint32_t)(a >> 32);
@@ -196,8 +199,25 @@ void qd_rng_seed_fixed(uint64_t seed)
 
 bool qd_rng_is_replay(void) { return replay; }
 
+void qd_rng_hold(const uint32_t state[4])
+{
+    for (int i = 0; i < 4; i++) s[i] = state[i];
+    keep_nonzero();
+    held = true;
+    replay = false;
+}
+
+void qd_rng_release(void)
+{
+    held = false;
+}
+
+bool qd_rng_is_held(void) { return held; }
+
 void qd_rng_init_hw(void)
 {
+    if (held)                                         /* fair mode is on: ignored */
+        return;
     uint32_t hw[4];
     qd_platform_seed(hw, 4);
     if (replay) {                                     /* leaving replay: start afresh */
@@ -215,7 +235,7 @@ void qd_rng_init_hw(void)
  * ======================================================================== */
 uint32_t qd_rng_stir_source(const qd_entropy_source_t *src, uint32_t samples)
 {
-    if (!src || !src->sample || replay)
+    if (!src || !src->sample || replay || held)
         return 0;
     if (src->begin && !src->begin(src->ctx))
         return 0;

@@ -28,6 +28,11 @@
  *   tests, bug reports and teaching. Stirring is ignored while replay mode
  *   is on (it would break the replay); qd_rng_init_hw() leaves it.
  *
+ * FAIR MODE
+ *   qd_fair.h holds the generator for a fair session: each action's rolls
+ *   come from a secret key and the action's number, and stirring, seeding
+ *   and replay are all ignored until the session ends.
+ *
  * UNBIASED NUMBERS
  *   "random % 6" is very slightly unfair: 2^32 isn't a multiple of 6, so the
  *   low faces come up a hair more often. qd_rng_range() rejects the few
@@ -62,19 +67,20 @@ int32_t qd_rng_between(int32_t lo, int32_t hi);
  *  this uses the RP2350 TRNG (qd_entropy_pico.c). On a PC build it uses
  *  the clock and the address of a stack variable: fine for trying things,
  *  not for anything that matters. Call once at boot; calling again later
- *  just stirs in fresh hardware randomness. */
+ *  just stirs in fresh hardware randomness. Ignored in fair mode. */
 void qd_rng_init_hw(void);
 
 /** Replay mode: replace the state with one built from `seed`, so the same
  *  sequence follows on any machine. Stirring is ignored until
- *  qd_rng_init_hw() is called. */
+ *  qd_rng_init_hw() is called. Ignored in fair mode (end the session
+ *  first: qd_fair_end). */
 void qd_rng_seed_fixed(uint64_t seed);
 
 /** True while replay mode is on. */
 bool qd_rng_is_replay(void);
 
 /** Mix bytes into the state. Returns false (and does nothing) in replay
- *  mode. Any bytes will do: a typed seed, sensor readings, timings. */
+ *  mode and fair mode. Any bytes will do: a typed seed, sensor readings, timings. */
 bool qd_rng_stir(const void *bytes, size_t len);
 
 /** Mix one 32-bit value in. Same as qd_rng_stir(&v, 4). */
@@ -87,6 +93,15 @@ void qd_rng_save(uint32_t state[4]);
 /** Put a saved state back. Replay mode is left as it was. An all-zero
  *  state (which would get stuck) is quietly made non-zero. */
 void qd_rng_restore(const uint32_t state[4]);
+
+/** Fair mode's hold (qd_fair.h uses these; an app calls qd_fair_*, not
+ *  these). While held, the state is set only by qd_rng_hold(): stirring,
+ *  qd_rng_init_hw() and qd_rng_seed_fixed() are ignored, so nothing can
+ *  change a fair session's rolls. qd_rng_save()/qd_rng_restore() still
+ *  work (qd_odds borrows the generator and puts it back). */
+void qd_rng_hold(const uint32_t state[4]);
+void qd_rng_release(void);
+bool qd_rng_is_held(void);
 
 /** Scripted draws, for working out exact odds: while a script is set,
  *  qd_rng_range(n) returns the script's next pick (and notes n) instead of

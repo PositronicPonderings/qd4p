@@ -25,6 +25,7 @@ add_library(qd4p STATIC
     qd_stats.c            # stats for nerds: tallies per die, fairness (portable)
     qd_odds.c             # odds: exact or simulated (portable)
     qd_text.c             # dice in text, rolls that pick from ranges (portable)
+    qd_fair.c             # fair mode: key, fingerprint, numbered actions (portable)
     qd_entropy_pico.c     # Pico-only: hardware seed, TRNG/ADC/event sources
 )
 target_include_directories(qd4p PUBLIC ${CMAKE_CURRENT_LIST_DIR})
