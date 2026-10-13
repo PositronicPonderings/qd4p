@@ -511,38 +511,58 @@ static void cmd_odds(char *args)
     printf("%s%s\n", tidy, p.repeat > 1 || p.set ? "   (odds for one roll)" : "");
     if (o.method == QD_ODDS_EXACT_SUM) printf("  exact (worked out die by die)");
     else if (o.method == QD_ODDS_EXACT_ALL) printf("  exact (all %lu rolls tried)", (unsigned long)o.runs);
-    else printf("  simulated (%lu rolls): about right, not exact", (unsigned long)o.runs);
+    else if (o.method == QD_ODDS_NORMAL) printf("  bell curve: exact average and spread, chances very close");
+    else printf("  simulated (%lu rolls): close, not exact", (unsigned long)o.runs);
     printf(", %lu ms\n", (unsigned long)(us / 1000));
     printf("  %s %.2f on average, spread %.2f, from %ld to %ld\n", o.counting ? "successes:" : "total:",
-           o.mean, o.sd, (long)o.lo, (long)o.hi);
+           fabs(o.mean) < 0.005 ? 0.0 : o.mean, o.sd, (long)o.lo, (long)o.hi);
 
+    /* The chart covers where 99.99% of results fall: one row per value, or
+     * about 20 rows of grouped values. */
+    int i0 = 0, i1 = o.bins;
+    double run = o.below;
+    while (i0 < o.bins && run + o.dist[i0] < 0.00005) run += o.dist[i0++];
+    run = o.above;
+    while (i1 > i0 && run + o.dist[i1 - 1] < 0.00005) run += o.dist[--i1];
+    int n = i1 - i0;
+    int group = n <= 40 ? 1 : (n + 19) / 20;
+    int rows = (n + group - 1) / group;
+    static double row[40];
     double biggest = 0;
-    for (int i = 0; i < o.bins; i++) if (o.dist[i] > biggest) biggest = o.dist[i];
-    if (o.bins <= 40) {
-        for (int i = 0; i < o.bins; i++) {
-            printf("  %5ld %6.2f%%  ", (long)(o.first + i), 100.0 * o.dist[i]);
-            bar(o.dist[i], biggest, 40);
-            printf("\n");
-        }
-    } else {
-        /* too many values to list: where the totals fall */
+    for (int i = 0; i < rows; i++) {
+        row[i] = 0;
+        for (int j = i0 + i * group; j < i0 + (i + 1) * group && j < i1; j++) row[i] += o.dist[j];
+        if (row[i] > biggest) biggest = row[i];
+    }
+    long span = (long)group * o.width;
+    for (int i = 0; i < rows; i++) {
+        long from = (long)o.first + (long)i0 * o.width + (long)i * span;
+        char range[48];
+        if (span == 1) snprintf(range, sizeof(range), "%ld", from);
+        else snprintf(range, sizeof(range), "%ld to %ld", from, from + span - 1);
+        printf("  %22s", range);
+        printf("%6.2f%%  ", 100.0 * row[i]);
+        bar(row[i], biggest, 40);
+        printf("\n");
+    }
+    if (o.bins > 40 || o.width > 1) {
         static const int pct[] = { 5, 25, 50, 75, 95 };
         double run = o.below;
         int k = 0;
         printf("  ");
         for (int i = 0; i < o.bins && k < 5; i++) {
             run += o.dist[i];
-            while (k < 5 && run * 100 >= pct[k]) printf("%d%%: %ld  ", pct[k++], (long)(o.first + i));
-        }
-        printf("(half the rolls are at or below the 50%% value)\n");
-    }
-    if (o.judged) {
-        printf("  pass %.2f%%:", 100.0 * o.pass);
-        for (int l = 8; l >= 0; l--) {
-            const char *name = qd_sys_level_name(&p.roll, l - 4);
-            if (o.level[l] > 0 && *name) printf("  %s %.2f%%", name, 100.0 * o.level[l]);
+            while (k < 5 && run * 100 >= pct[k])
+                printf("%d%%: %ld  ", pct[k++], (long)(o.first + (long)i * o.width));
         }
         printf("\n");
+    }
+    if (o.judged) {
+        printf("  pass %.2f%%\n", 100.0 * o.pass);
+        for (int l = 8; l >= 0; l--) {
+            const char *name = qd_sys_level_name(&p.roll, l - 4);
+            if (o.level[l] > 0 && *name) printf("    %-20s %6.2f%%\n", name, 100.0 * o.level[l]);
+        }
     }
 }
 
@@ -571,15 +591,15 @@ static void cmd_stats(char *args)
         qd_stats_report_t r;
         qd_stats_report(k, &r);
         char name[16];
-        printf("%-10s %6lu rolls, average %.2f (fair %.2f), spread %.2f (%.2f)",
+        printf("%-9s %6lu rolls  average %.2f (fair %.2f)  spread %.2f (%.2f)\n",
                kind_name(k, name, sizeof(name)), (unsigned long)k->count, r.mean, r.expect_mean, r.sd, r.expect_sd);
-        if (r.verdict == QD_STATS_NO_FACES) { printf("\n"); continue; }
-        printf(", top face %lu, bottom %lu\n           ", (unsigned long)r.highest, (unsigned long)r.lowest);
+        if (r.verdict == QD_STATS_NO_FACES) continue;
+        printf("          top face %lu, bottom %lu; ", (unsigned long)r.highest, (unsigned long)r.lowest);
         if (r.verdict == QD_STATS_TOO_FEW)
-            printf("too few rolls to judge yet (about %d needed)\n", 5 * k->sides);
+            printf("too few to judge (about %d needed)\n", 5 * k->sides);
         else
-            printf("chi-square %.1f, limit %.1f: %s\n", r.chi, r.limit,
-                   r.verdict == QD_STATS_FAIR ? "looks fair" : "odd (a fair die does this 1 time in 1000)");
+            printf("chi-square %.1f (limit %.1f): %s\n", r.chi, r.limit,
+                   r.verdict == QD_STATS_FAIR ? "looks fair" : "odd, 1 in 1000 for a fair die");
         if (want && k->faces) {
             uint32_t most = 0;
             for (int f = 0; f < k->sides; f++) if (k->face[f] > most) most = k->face[f];

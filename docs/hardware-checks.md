@@ -200,12 +200,17 @@ the dice it came from.
    22.20%, Hard 29.50%, Regular 33.90%, Failure 12.40%, Fumble 0.10%.
 3. **Simulated.** `odds sw8 vs 6`: "simulated (10000 rolls)", pass near
    49%. `odds vtm 6 h2 vs 3`: Messy critical and Bestial failure chances.
-4. **Big sums.** `odds 100d6`: exact, average 350.00, from 100 to 600, and
-   the 5% / 25% / 50% / 75% / 95% points (322 338 350 362 378).
+4. **Big sums.** `odds 100d6`: exact, average 350.00, from 100 to 600, a
+   chart of about 20 grouped rows and the 5% / 25% / 50% / 75% / 95%
+   points. `odds 1000d6666`: "bell curve", average 3333500.00, instant (it
+   took 4.2 s simulated before). `odds 400df`: a chart from about -64 to
+   63, not the whole -400 to 400.
 5. **Odds don't disturb rolls.** `seed 42`, `odds sw8`, then `next 1`:
    1776835114, the same as without the odds.
-6. **Time.** Each odds line ends with how long it took: note the slowest
-   (likely `odds 5d6 k3`, all 7,776 rolls tried, or a simulated one).
+6. **Time.** Each odds line ends with how long it took. Nothing should
+   take much over a second now (a simulated roll stops at half a million
+   dice); `odds 1000d6 ie` is a good worst case.
+8. **Width.** Every line fits an 80-column terminal.
 7. **Stats.** Roll a few things (`1000d6`, `1000d20`, `4dF`, `dd66`), then
    `stats`: each kind with its rolls, average against fair, top and bottom
    faces and a verdict (`dd66` adds two d6s each time). `stats 20` draws

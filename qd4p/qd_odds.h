@@ -21,9 +21,15 @@
  *   2. Anything else small enough is worked out exactly by trying every
  *      possible roll once, each weighted by its chance: 4d6k3 is 1,296
  *      rolls, 1d20 adv 400, coc 65 b2 1,000. Up to QD_ODDS_EXACT_RUNS.
- *   3. Otherwise it is simulated: QD_ODDS_SAMPLES rolls (fewer for very
+ *   3. A plain sum of 20 or more dice too wide for 1 (1000d6666): the
+ *      average and spread exactly, and the bell curve (normal
+ *      distribution) for the chances, which for that many dice is within
+ *      a fraction of a percent. Marked not exact.
+ *   4. Otherwise it is simulated: QD_ODDS_SAMPLES rolls (fewer for very
  *      big rolls), and the answer is marked approximate. Exploding dice
  *      that can explode again (ie) are always simulated.
+ * DIST: one entry per value when the roll has up to QD_ODDS_BINS values;
+ * wider rolls group values (`width` per entry) so the whole range fits.
  * Working out odds never changes the rolls that come after: the generator
  * is put back as it was, and nothing is counted in stats for nerds.
  *
@@ -47,6 +53,8 @@ enum {
     QD_ODDS_EXACT_SUM = 1,              /**< exact, by convolution */
     QD_ODDS_EXACT_ALL,                  /**< exact, by trying every roll */
     QD_ODDS_SIMULATED,                  /**< approximate, by simulation */
+    QD_ODDS_NORMAL,                     /**< a big plain sum: exact average and spread,
+                                             the bell curve for the rest (very close) */
 };
 
 typedef struct {
@@ -59,20 +67,21 @@ typedef struct {
     bool     judged;                    /**< a target or game system: pass and level mean something */
     double   pass;                      /**< chance of passing */
     double   level[9];                  /**< chance of outcome level L at [L + 4] (L = -4..4) */
-    int32_t  first;                     /**< dist[0] is the chance of the value `first` */
-    uint16_t bins;                      /**< values in dist */
-    float    dist[QD_ODDS_BINS];        /**< chance of each value first .. first + bins - 1 */
-    double   below, above;              /**< chance of values outside dist (very wide rolls) */
+    int32_t  first;                     /**< dist[0] starts at the value `first` */
+    int32_t  width;                     /**< values per entry: 1, or more for wide rolls */
+    uint16_t bins;                      /**< entries in dist */
+    float    dist[QD_ODDS_BINS];        /**< chance of values first + i*width ... first + (i+1)*width - 1 */
+    double   below, above;              /**< chance of values outside dist */
 } qd_odds_t;
 
 /** Work out the odds of a roll. */
 qd_err_t qd_odds(const qd_roll_t *r, qd_odds_t *out);
 
-/** The chance the value is `v` or more (exact within dist; outside it the
- *  tails are counted whole). */
+/** The chance the value is `v` or more (exact when width is 1; inside a
+ *  grouped entry the values are taken as equally likely). */
 double qd_odds_at_least(const qd_odds_t *o, int32_t v);
 
-/** ... and the chance it is exactly `v`. */
+/** ... and the chance it is exactly `v` (grouped: the entry's average). */
 double qd_odds_exactly(const qd_odds_t *o, int32_t v);
 
 #ifdef __cplusplus

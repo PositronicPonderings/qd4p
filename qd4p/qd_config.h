@@ -127,7 +127,7 @@
 
 /** ... unless they would need more dice than this altogether. */
 #ifndef QD_ODDS_DICE_BUDGET
-#define QD_ODDS_DICE_BUDGET     2000000L
+#define QD_ODDS_DICE_BUDGET     500000L
 #endif
 
 /** Exact sums: widest range of totals worked out (4 float buffers of it). */

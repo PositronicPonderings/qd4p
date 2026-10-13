@@ -22,7 +22,7 @@ In the console: `odds 4d6k3`, `odds atk adv + 5 vs 15`, `odds coc 65 b1`.
 | --- | --- |
 | `mean`, `sd` | the average value and its spread |
 | `lo`, `hi` | the lowest and highest value possible (simulated: seen) |
-| `dist[]`, `first`, `bins` | the chance of each value, from `first` |
+| `dist[]`, `first`, `width`, `bins` | the chance of each value from `first`; wide rolls group `width` values per entry |
 | `qd_odds_at_least(&o, v)` | the chance of `v` or more |
 | `qd_odds_exactly(&o, v)` | the chance of exactly `v` |
 | `judged`, `pass` | with a target (`vs`) or a game system: the chance of passing |
@@ -35,7 +35,7 @@ repeat or a set (`6 x 4d6k3`) the odds are for one roll.
 
 ### How
 
-QD4P picks the first of three methods that fits:
+QD4P picks the first of four methods that fits:
 
 1. **Exact, die by die** (`QD_ODDS_EXACT_SUM`). Sums and success counts of
    plain dice (no keep or drop, advantage, exploding or rerolls), with
@@ -48,12 +48,26 @@ QD4P picks the first of three methods that fits:
    enough: every possible roll is tried once and weighted by its chance.
    `4d6k3` is 1,296 rolls, `atk adv` 400, `coc 65 b1` 1,000, `fate` 1,296,
    `5d6 k3` 7,776. Up to `QD_ODDS_EXACT_RUNS` (50,000).
-3. **Simulated** (`QD_ODDS_SIMULATED`). Everything else: `QD_ODDS_SAMPLES`
-   (10,000) rolls, fewer for very big rolls (`QD_ODDS_DICE_BUDGET`, 2
-   million dice). Exploding dice that can explode again (`ie`, so Savage
+3. **Bell curve** (`QD_ODDS_NORMAL`). A plain sum of 20 or more dice too
+   wide for the first method (`300d6`, `1000d6666`): the average and spread
+   are exact, and the chances come from the normal distribution, which for
+   that many dice is within a fraction of a percent. Instant. Marked not
+   exact.
+4. **Simulated** (`QD_ODDS_SIMULATED`). Everything else: `QD_ODDS_SAMPLES`
+   (10,000) rolls, fewer for very big rolls (`QD_ODDS_DICE_BUDGET`, half a
+   million dice, about a second on the Pico). Exploding dice that can explode again (`ie`, so Savage
    Worlds) and big pools (`vtm 8 h3`) land here. The answer is close, not
    exact: with 10,000 rolls a chance near 50% is usually within a
    percentage point.
+
+On a Pico 2 (measured): `4d6k3` 58 ms, `atk adv` 26 ms, `coc 65 b1` 69 ms,
+`5d6 k3` 345 ms, `100d6` 34 ms, a simulated `sw8` about 0.7 s.
+
+When a roll has more values than `QD_ODDS_BINS` (256), `dist` groups them,
+`width` values per entry, so the whole range still fits; `qd_odds_at_least`
+and `qd_odds_exactly` treat the values inside an entry as equally likely.
+The console draws the range that holds 99.99% of the results, one row per
+value or about 20 rows of groups.
 
 Working out odds never changes the rolls that follow: the generator is put
 back exactly as it was (replay mode gives the same rolls as if you hadn't

@@ -24,7 +24,7 @@ typedef struct {
     bool    any;
     double  pass, level[9];
     bool    judged;
-    int32_t first;
+    int32_t first, width;
     double  hist[QD_ODDS_BINS];
     double  below, above;
 } acc_t;
@@ -41,7 +41,8 @@ static void acc_add(const qd_roll_t *r, const qd_result_t *res, double w, bool *
     if (!acc.any || v < acc.lo) acc.lo = v;
     if (!acc.any || v > acc.hi) acc.hi = v;
     acc.any = true;
-    int64_t i = (int64_t)v - acc.first;
+    int64_t off = (int64_t)v - acc.first;
+    int64_t i = off >= 0 ? off / acc.width : -1;
     if (i < 0) acc.below += w;
     else if (i >= QD_ODDS_BINS) acc.above += w;
     else acc.hist[i] += w;
@@ -66,6 +67,7 @@ static void acc_finish(qd_odds_t *out)
     out->pass = acc.pass / W;
     for (int l = 0; l < 9; l++) out->level[l] = acc.level[l] / W;
     out->first = acc.first;
+    out->width = acc.width;
     out->bins = QD_ODDS_BINS;
     for (int i = 0; i < QD_ODDS_BINS; i++) out->dist[i] = (float)(acc.hist[i] / W);
     out->below = acc.below / W;
@@ -76,7 +78,7 @@ static void acc_finish(qd_odds_t *out)
     while (b > a && out->dist[b - 1] == 0) b--;
     if (a < b) {
         memmove(out->dist, out->dist + a, (size_t)(b - a) * sizeof(float));
-        out->first += a;
+        out->first += a * out->width;
         out->bins = (uint16_t)(b - a);
     } else {
         out->bins = 0;
@@ -94,10 +96,19 @@ static void choose_window(const qd_roll_t *r)
         if (!i || v < lo) lo = v;
         if (!i || v > hi) hi = v;
     }
-    int64_t mid = ((int64_t)lo + hi) / 2;
-    acc.first = (int32_t)(mid - QD_ODDS_BINS / 2);
-    if (hi - lo + 1 < QD_ODDS_BINS / 2 && lo - acc.first > 8)
-        acc.first = lo - 8 < acc.first ? acc.first : lo - 8;
+    int64_t span = (int64_t)hi - lo + 1;
+    if (span * 2 <= QD_ODDS_BINS) {
+        /* one entry per value, with room either side for rarer results */
+        int64_t mid = ((int64_t)lo + hi) / 2;
+        acc.width = 1;
+        acc.first = (int32_t)(mid - QD_ODDS_BINS / 2);
+        if (lo - acc.first > 8)
+            acc.first = lo - 8 < acc.first ? acc.first : lo - 8;
+    } else {
+        /* grouped, covering twice what the quick look saw */
+        acc.width = (int32_t)((2 * span + QD_ODDS_BINS - 1) / QD_ODDS_BINS);
+        acc.first = (int32_t)(lo - span / 2);
+    }
 }
 
 /* ========================================================================
@@ -348,25 +359,41 @@ static bool linear(const qd_roll_t *r, int32_t coef[QD_MAX_POOLS], int64_t *cons
     return true;
 }
 
-static bool convolution(const qd_roll_t *r, qd_odds_t *out)
+/* Is the roll a plain sum (or success count): no system, no keep,
+ * advantage, steps or bonus dice, and + - * by numbers only? */
+static bool plain_sum(const qd_roll_t *r, int32_t coef[QD_MAX_POOLS], int64_t *constant, bool *counting)
 {
     if (r->sys.id)
         return false;
-    bool counting = false;
+    *counting = false;
+    *constant = 0;
     for (int k = 0; k < r->pool_count; k++) {
         const qd_pool_t *p = &r->pools[k];
         if (p->advantage || p->step_count || p->keep != QD_KEEP_ALL || (p->percentile && p->pct_bonus))
             return false;
-        counting |= counts_successes(p);
+        *counting |= counts_successes(p);
     }
-    int32_t coef[QD_MAX_POOLS];
-    int64_t constant = 0;
-    if (counting) {
+    if (*counting) {
         for (int k = 0; k < QD_MAX_POOLS; k++) coef[k] = 1;
-    } else if (!linear(r, coef, &constant)) {
-        return false;
+        return true;
     }
+    return linear(r, coef, constant);
+}
 
+/* Spread a value range of chances over dist, grouping if it is wide. */
+static void fill_dist(qd_odds_t *out, const float *g, int32_t glo, int gn)
+{
+    int32_t w = gn <= QD_ODDS_BINS ? 1 : (gn + QD_ODDS_BINS - 1) / QD_ODDS_BINS;
+    out->first = glo;
+    out->width = w;
+    out->bins = (uint16_t)((gn + w - 1) / w);
+    memset(out->dist, 0, sizeof(out->dist));
+    for (int i = 0; i < gn; i++) out->dist[i / w] += g[i];
+}
+
+static bool convolution(const qd_roll_t *r, qd_odds_t *out, const int32_t *coef, int64_t constant,
+                        bool counting)
+{
     /* G starts as "certainly 0" and takes in each pool. */
     int32_t glo = 0, plo, dlo, tlo;
     int gn = 1, pn, dn, tn;
@@ -420,22 +447,122 @@ static bool convolution(const qd_roll_t *r, qd_odds_t *out)
         out->level[QD_LVL_PASS + 4] = pass;
         out->level[QD_LVL_FAIL + 4] = 1 - pass;
     }
-    /* the window: everything if it fits, else centred on the average */
-    int from = 0;
-    if (gn > QD_ODDS_BINS) {
-        from = (int)(out->mean - glo) - QD_ODDS_BINS / 2;
-        if (from < 0) from = 0;
-        if (from > gn - QD_ODDS_BINS) from = gn - QD_ODDS_BINS;
-    }
-    out->first = glo + from;
-    out->bins = (uint16_t)(gn - from < QD_ODDS_BINS ? gn - from : QD_ODDS_BINS);
-    for (int i = 0; i < gn; i++) {
-        if (i < from) out->below += buf_g[i];
-        else if (i >= from + out->bins) out->above += buf_g[i];
-        else out->dist[i - from] = buf_g[i];
-    }
+    fill_dist(out, buf_g, glo, gn);
     out->method = QD_ODDS_EXACT_SUM;
     out->exact = true;
+    return true;
+}
+
+/* ========================================================================
+ * 3. The bell curve, for big plain sums too wide to convolve. The average
+ *    and spread are exact (each die's, added up); for 20 or more dice the
+ *    normal distribution gives the chances to within a fraction of a
+ *    percent.
+ * ======================================================================== */
+static double phi(double z)
+{
+    return 0.5 * erfc(-z / sqrt(2.0));
+}
+
+/* One die's average, variance, lowest and highest contribution. */
+static void die_moments(const qd_pool_t *p, bool counting, double *m, double *v, double *lo, double *hi)
+{
+    int16_t vlo, vhi;
+    qd_pool_range(p, &vlo, &vhi);
+    double s1 = 0, s2 = 0, n = 0;
+    *lo = 1e300;
+    *hi = -1e300;
+#define FACE(val, label, prob) do {                                               \
+        double x = counting ? contrib(p, (int16_t)(val), (label), vlo, vhi) : (val); \
+        s1 += (prob) * x; s2 += (prob) * x * x; n += (prob);                      \
+        if (x < *lo) *lo = x;                                                     \
+        if (x > *hi) *hi = x;                                                     \
+    } while (0)
+    if (!counting && !p->die && !p->digits) {
+        /* standard dice (and d%): no need to visit every face */
+        double s = p->percentile ? 100 : p->sides;
+        *m = (s + 1) / 2;
+        *v = (s * s - 1) / 12;
+        *lo = 1;
+        *hi = s;
+        return;
+    }
+    if (p->digits) {
+        int combos = 1;
+        for (int k = 0; k < p->digits; k++) combos *= p->digit_sides[k];
+        for (int c = 0; c < combos; c++) {
+            int val = 0, x = c;
+            for (int k = p->digits - 1, mul = 1; k >= 0; k--, mul *= 10) {
+                val += (x % p->digit_sides[k] + 1) * mul;
+                x /= p->digit_sides[k];
+            }
+            FACE(val, "", 1.0 / combos);
+        }
+    } else if (p->die) {
+        for (uint16_t f = 0; f < p->die->sides; f++)
+            FACE(qd_die_face_value(p->die, f), qd_die_face_label(p->die, f),
+                 (double)p->die->faces[f].weight / p->die->total_weight);
+    } else {
+        int s = p->percentile ? 100 : p->sides;
+        for (int val = 1; val <= s; val++) FACE(val, "", 1.0 / s);
+    }
+#undef FACE
+    *m = s1 / n;
+    *v = s2 / n - *m * *m;
+}
+
+static bool normal(const qd_roll_t *r, qd_odds_t *out, const int32_t *coef, int64_t constant, bool counting)
+{
+    double mean = (double)constant, var = 0, lo = (double)constant, hi = (double)constant;
+    long dice = 0;
+    for (int k = 0; k < r->pool_count; k++) {
+        const qd_pool_t *p = &r->pools[k];
+        if (coef[k] == 0 || (counting && !counts_successes(p)))
+            continue;
+        double m, v, a, b;
+        die_moments(p, counting, &m, &v, &a, &b);
+        double c = coef[k], n = p->count;
+        mean += c * n * m;
+        var += c * c * n * v;
+        lo += c >= 0 ? c * n * a : c * n * b;
+        hi += c >= 0 ? c * n * b : c * n * a;
+        dice += p->count;
+    }
+    if (dice < 20 || var <= 0)
+        return false;
+    double sd = sqrt(var);
+    out->counting = counting;
+    out->mean = mean;
+    out->sd = sd;
+    out->lo = (int32_t)lo;
+    out->hi = (int32_t)hi;
+
+    /* The chart: mean +-5 spreads (all but 1 in 3 million), grouped. */
+    double from = mean - 5 * sd, to = mean + 5 * sd;
+    if (from < lo) from = lo;
+    if (to > hi) to = hi;
+    int64_t first = (int64_t)floor(from), span = (int64_t)ceil(to) - first + 1;
+    int64_t w = (span + QD_ODDS_BINS - 1) / QD_ODDS_BINS;
+    if (w < 1) w = 1;
+    out->first = (int32_t)first;
+    out->width = (int32_t)w;
+    out->bins = (uint16_t)((span + w - 1) / w);
+    for (int i = 0; i < out->bins; i++) {
+        double a = first + (int64_t)i * w - 0.5, b = first + (int64_t)(i + 1) * w - 0.5;
+        out->dist[i] = (float)(phi((b - mean) / sd) - phi((a - mean) / sd));
+    }
+    out->below = phi((first - 0.5 - mean) / sd);
+    out->above = 1 - phi((first + (int64_t)out->bins * w - 0.5 - mean) / sd);
+    if (r->sys.has_target) {
+        double t = r->sys.target;
+        double pass = t <= lo ? 1 : t > hi ? 0 : 1 - phi((t - 0.5 - mean) / sd);
+        out->judged = true;
+        out->pass = pass;
+        out->level[QD_LVL_PASS + 4] = pass;
+        out->level[QD_LVL_FAIL + 4] = 1 - pass;
+    }
+    out->method = QD_ODDS_NORMAL;
+    out->exact = false;
     return true;
 }
 
@@ -448,8 +575,17 @@ qd_err_t qd_odds(const qd_roll_t *r, qd_odds_t *out)
     qd_err_t e = qd_roll_check(r);
     if (e)
         return e;
-    if (convolution(r, out))
-        return QD_OK;
+    int32_t coef[QD_MAX_POOLS];
+    int64_t constant;
+    bool counting;
+    if (plain_sum(r, coef, &constant, &counting)) {
+        if (convolution(r, out, coef, constant, counting))
+            return QD_OK;
+        memset(out, 0, sizeof(*out));
+        if (normal(r, out, coef, constant, counting))
+            return QD_OK;
+        memset(out, 0, sizeof(*out));
+    }
 
     /* The others roll the dice, so: keep the generator and stats as they are. */
     uint32_t saved[4];
@@ -459,13 +595,14 @@ qd_err_t qd_odds(const qd_roll_t *r, qd_odds_t *out)
 
     memset(&acc, 0, sizeof(acc));
     choose_window(r);
-    int32_t first = acc.first;
+    int32_t first = acc.first, width = acc.width;
     bool exact = false;
     if (log_rolls(r) <= log10((double)QD_ODDS_EXACT_RUNS) + 0.01) {
         exact = try_every_roll(r, out);
         if (!exact) {                                   /* too many after all: start again */
             memset(&acc, 0, sizeof(acc));
             acc.first = first;
+            acc.width = width;
         }
     }
     if (!exact)
@@ -481,15 +618,22 @@ qd_err_t qd_odds(const qd_roll_t *r, qd_odds_t *out)
 
 double qd_odds_at_least(const qd_odds_t *o, int32_t v)
 {
+    int32_t w = o->width > 0 ? o->width : 1;
     double p = o->above;
-    for (int i = 0; i < o->bins; i++)
-        if (o->first + i >= v) p += o->dist[i];
     if (v <= o->first) p += o->below;
+    for (int i = 0; i < o->bins; i++) {
+        int64_t start = (int64_t)o->first + (int64_t)i * w, end = start + w - 1;
+        if (start >= v) p += o->dist[i];
+        else if (end >= v) p += o->dist[i] * (double)(end - v + 1) / w;   /* part of a group */
+    }
     return p;
 }
 
 double qd_odds_exactly(const qd_odds_t *o, int32_t v)
 {
-    int64_t i = (int64_t)v - o->first;
-    return i >= 0 && i < o->bins ? o->dist[i] : 0;
+    int32_t w = o->width > 0 ? o->width : 1;
+    int64_t off = (int64_t)v - o->first;
+    if (off < 0) return 0;
+    int64_t i = off / w;
+    return i < o->bins ? o->dist[i] / w : 0;
 }

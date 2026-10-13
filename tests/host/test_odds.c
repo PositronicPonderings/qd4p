@@ -61,8 +61,9 @@ static void test_sums(void)
     CHECK(odds_of("2d{loaded}") && close_to(o.mean, 2 * 33.0 / 8, 1e-5) &&
           close_to(qd_odds_exactly(&o, 12), 9.0 / 64, 1e-6), "a loaded die's weights");
     CHECK(odds_of("100d6") && o.method == QD_ODDS_EXACT_SUM && close_to(o.mean, 350, 1e-3) &&
-          close_to(o.sd, sqrt(100 * 35.0 / 12), 1e-2) && o.lo == 100 && o.hi == 600,
-          "100d6: still exact (average %.5f), 100 to 600", o.mean);
+          close_to(o.sd, sqrt(100 * 35.0 / 12), 1e-2) && o.lo == 100 && o.hi == 600 && o.width == 2 &&
+          close_to(qd_odds_at_least(&o, 351), 0.5 - 0.5 * 0.02335, 0.002),
+          "100d6: still exact (average %.5f), 100 to 600, grouped in pairs", o.mean);
     CHECK(odds_of("d%") && close_to(o.mean, 50.5, 1e-5), "d%% is 1-100");
 }
 
@@ -113,8 +114,21 @@ static void test_simulated(void)
           "sw8 (exploding): simulated, success %.4f (exact 0.8125)", o.pass);
     CHECK(odds_of("1d6 ie") && close_to(o.mean, 4.2, 0.12), "1d6 ie: average %.3f (exact 4.2)", o.mean);
     CHECK(odds_of("vtm 8 h3") && !o.exact, "vtm 8 h3: 10^8 rolls, so simulated");
-    CHECK(odds_of("300d6") && o.method == QD_ODDS_SIMULATED && o.runs <= QD_ODDS_SAMPLES &&
-          close_to(o.mean, 1050, 3), "300d6: too wide to convolve, simulated (%u runs)", o.runs);
+    CHECK(odds_of("300d6") && o.method == QD_ODDS_NORMAL && !o.exact && close_to(o.mean, 1050, 1e-9) &&
+          close_to(o.sd, sqrt(300 * 35.0 / 12), 1e-9) && o.lo == 300 && o.hi == 1800 &&
+          close_to(qd_odds_at_least(&o, 1050), 0.5 + 0.5 * 0.01348, 0.002),
+          "300d6: too wide to convolve, so the bell curve: exact average and spread");
+    CHECK(odds_of("1000d6666 vs 3333500") && o.method == QD_ODDS_NORMAL && close_to(o.mean, 3333500, 1e-6) &&
+          close_to(o.pass, 0.5, 0.001) && o.width > 1 && o.bins <= QD_ODDS_BINS,
+          "1000d6666: instant, pass %.4f, grouped %d values per entry", o.pass, o.width);
+    CHECK(odds_of("1d32767 + 1") && o.method != QD_ODDS_NORMAL, "one big die is not a bell curve: not normal");
+
+    /* Wide simulated rolls are grouped, and nothing is lost off the ends. */
+    CHECK(odds_of("100d10 ie") && o.method == QD_ODDS_SIMULATED && o.width > 1, "100d10 ie: simulated, grouped");
+    double mass = o.below + o.above;
+    for (int i = 0; i < o.bins; i++) mass += o.dist[i];
+    CHECK(close_to(mass, 1, 1e-6) && o.below + o.above < 0.01, "... all of it in the chart (%.4f outside)",
+          o.below + o.above);
 
     /* Odds never touch the rolls that follow, in replay or out. */
     qd_rng_seed_fixed(42);
