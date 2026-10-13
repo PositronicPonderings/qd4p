@@ -185,7 +185,8 @@ static void test_errors(void)
         { "4d6 +",          6,  "stops too soon" },
         { "4d6 k3 x",       8,  "isn't a modifier" },
         { "4d6 kitten",     7,  "t needs a number" },   /* k, i, then t */
-        { "4 d6",           3,  "no space inside dice" },
+        { "4 d6",           3,  "no space inside dice: write 4d6" },
+        { "12 d7 K4",       4,  "write 12d7" },
         { "4d",             3,  "what kind of die" },
         { "4d0",            3,  "at least 1 side" },
         { "4d40000",        3,  "at most 32767 sides" },

@@ -642,7 +642,15 @@ static bool roll(ps_t *ps)
         int k = ps->i - 1;
         while (k >= start && ps->s[k] == ' ') k--;
         if (lower(c) == 'd' && k >= start && is_digit(ps->s[k]) && k < ps->i - 1)
-            return fail(ps, ps->i, 1, "no space inside dice: write 4d6, not 4 d6");
+        {
+            /* quote what was typed: "4 d7" -> "write 4d7" */
+            int n0 = k;
+            while (n0 > start && is_digit(ps->s[n0 - 1])) n0--;
+            int d1 = ps->i + 1;
+            while (d1 < ps->end && (is_digit(ps->s[d1]) || ps->s[d1] == '%' || lower(ps->s[d1]) == 'f')) d1++;
+            return fail(ps, ps->i, 1, "no space inside dice: write %.*s%.*s", k + 1 - n0, ps->s + n0,
+                        d1 - ps->i, ps->s + ps->i);
+        }
         if (c == ')')
             return fail(ps, ps->i, 1, "a ')' without its '('");
         return fail(ps, ps->i, 1, "expected + - * / [ ! or the end, not '%c'", c);
