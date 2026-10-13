@@ -424,12 +424,15 @@ static void vtm(const qd_roll_t *r, const qd_result_t *res, qd_outcome_t *out)
         if (out->judged) TEXT("Win");
         else TEXT("%d success%s", s, s == 1 ? "" : "es");
     }
-    if (out->judged)
+    if (out->judged && pairs)
+        DETAIL("%d successes, %d from %s of 10s, vs %ld", s, 4 * pairs,
+               pairs == 1 ? "a pair" : "pairs", (long)r->sys.target);
+    else if (out->judged)
         DETAIL("%d success%s vs %ld", s, s == 1 ? "" : "es", (long)r->sys.target);
     else if (hunger_ones && s > 0)
         DETAIL("hunger 1s: bestial if it fails");
-    else if (out->critical || s == 0)
-        DETAIL("%d success%s", s, s == 1 ? "" : "es");
+    else if (out->critical)
+        DETAIL("%d successes, %d from %s of 10s", s, 4 * pairs, pairs == 1 ? "a pair" : "pairs");
 }
 
 /* Dungeon Crawl Classics. A natural roll of the die's highest face is a

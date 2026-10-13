@@ -138,15 +138,16 @@ After the dice, a line starting `=>` gives the game's reading of the roll.
 `notation` lists the shortcuts; `docs/notation.md` ("Game systems") has
 the rules. Use `live` (or any seed) and try each a few times:
 
-1. **Targets.** `1d20+5 vs 15` says Pass or Fail and by how much.
+1. **Targets.** `1d20+5 vs 15` (or `v 15`) says Pass or Fail and by how much.
    `6d10 t8 vs 3` judges the successes.
 2. **D&D.** `atk adv + 5 vs 15`: the higher d20 counts; a natural 20 says
    Critical hit, a natural 1 Miss whatever the total. `chk - 30 vs 5` can
-   never pass, even on a 20 (it notes "natural 20"). `save dis + 2`.
+   never pass, even on a 20 (it notes "natural 20"). `save dis + 2` (or
+   `sav`). `chk d20 v 15` is fine; `chk d30 vs 5` says to write `1d30 vs 5`.
 3. **Savage Worlds.** `sw8 + 1 vs 6` shows `trait:` and `wild:` dice,
    the better one counting, "Success, N raises" every 4 over, and aces
    (exploded dice) counted. Snake eyes (both 1s) says Critical failure.
-   `sw6 x` has no wild die.
+   `sw6 x` has no wild die; `sw4-2 x` is an unskilled Extra (d4-2).
 4. **Call of Cthulhu.** `coc 65 b2`: the kept result first, the other two
    tens results in brackets, then Regular / Hard / Extreme / Critical /
    Failure / Fumble, and the thresholds (hard 32, extreme 13).
@@ -156,7 +157,7 @@ the rules. Use `live` (or any seed) and try each a few times:
 6. **Vampire.** `vtm 7 h2 vs 3`: regular and `hunger:` dice; a pair of
    10s is a Critical (Messy if a hunger die is a 10); a failure with a
    hunger 1 is a Bestial failure.
-7. **DCC.** `dcc d20 +1d + 2 vs 15` rolls a d24 (one step up the chain);
+7. **DCC.** `dcc d20 +1d + 2 vs 15` (or `+ d`) rolls a d24 (one step up the chain);
    a natural 24 is a Critical, a 1 a Fumble.
 8. **Sets and percentile.** `5d10 sets` lists pairs and triples ("sets:
    2x7"). `d% b2` and `d% p1` work on their own too.

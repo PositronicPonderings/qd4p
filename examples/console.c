@@ -574,7 +574,7 @@ static void run_line(char *line)
         }
     /* Anything else is tried as a roll: "4d6k3", "(Bite) 1d20+5", "6 x 4d6k3". */
     if (*args) line[strlen(line)] = ' ';    /* put the line back together */
-    static const char *const system_words[] = { "atk", "chk", "check", "save", "fate", "coc",
+    static const char *const system_words[] = { "atk", "chk", "check", "save", "sav", "fate", "coc",
                                                  "vtm", "dcc" };
     bool looks_like_roll = !isalpha((unsigned char)*line) || tolower((unsigned char)*line) == 'd' ||
                            strchr(line, ':') != NULL ||

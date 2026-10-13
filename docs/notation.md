@@ -64,7 +64,7 @@ unchanged. Where the two differ, this page says so.
 | Comment | `! text` | `1d20 ! flanking` | a note shown with the result |
 | Repeat | `N x` | `6 x 4d6 k3` | roll it six times |
 | Several rolls | `;` | `2d6 ; 1d20` | up to four rolls on one line |
-| Target | `vs N` | `1d20+5 vs 15` | pass if the total (or successes) reaches 15 |
+| Target | `vs N` or `v N` | `1d20+5 vs 15` | pass if the total (or successes) reaches 15 |
 | Matching sets | `sets` | `5d10 sets` | report pairs, triples ... |
 | Bonus/penalty | `d% bN` `d% pN` | `d% b2` | Call of Cthulhu tens dice |
 | D&D 5e | `atk` `chk` `save` | `atk adv + 5 vs 15` | d20, nat 20/1 on attacks |
@@ -478,7 +478,8 @@ for dice with up to 30 faces.
 ## Targets: vs
 
 `vs N` at the end of a roll (before buckets and comments) judges it: pass
-if the result reaches N.
+if the result reaches N. `v N` is the same thing, shorter; rolls are
+always written back with `vs`.
 
 ```
 1d20 + 5 vs 15        pass on 15 or more
@@ -515,17 +516,24 @@ result: raises, success levels, messy criticals and so on. In C,
 
 | System | Shortcut | Maths after it? | `vs` means |
 | --- | --- | --- | --- |
-| D&D 5e | `atk`, `chk` (or `check`), `save`, then `adv` / `dis` | yes | AC or DC |
-| Savage Worlds | `sw4` `sw6` `sw8` `sw10` `sw12`, then `x` for an Extra | yes | Target Number (default 4) |
+| D&D 5e | `atk`, `chk` (or `check`), `save` (or `sav`), then `adv` / `dis` | yes | AC or DC |
+| Savage Worlds | `sw4` `sw6` `sw8` `sw10` `sw12`, and `x` for an Extra | yes | Target Number (default 4) |
 | Call of Cthulhu 7e | `coc SKILL`, then `bN` / `pN` | no | `regular`, `hard` or `extreme` |
 | FATE | `fate` | yes | the opposition |
 | Vampire 5e | `vtm POOL hHUNGER` | no | difficulty |
-| DCC | `dcc dN` or `dcc NdN`, then `+Nd` / `-Nd` chain steps | yes | DC or AC |
+| DCC | `dcc dN` or `dcc NdN`, then `+Nd` / `-Nd` (or `+d` / `-d`) chain steps | yes | DC or AC |
 
 ### D&D 5th edition: `atk`, `chk`, `save`
 
-A d20, with advantage or disadvantage if you add `adv` or `dis` straight
-after the word.
+The word stands for the d20, with advantage or disadvantage if you add
+`adv` or `dis` straight after it. Writing the d20 as well is fine
+(`chk d20 + 3`); any other die is an error, because these are d20 rolls
+(for a d30 check, write plain `1d30 + 3 vs 12`).
+
+`chk` (ability checks) and `save` (saving throws) behave the same: the
+total against the DC. The two names just say which kind of roll it was,
+for the log and the screen. `atk` differs in one way: a natural 20 always
+hits and a natural 1 always misses.
 
 ```
 atk + 7 vs 15            an attack against AC 15
@@ -555,8 +563,12 @@ sw8                 Fighting d8 against TN 4
 sw8 + 1 vs 6        +1, against a Parry of 6
 sw12 + 2            a d12+2 trait
 sw6 x               an Extra: no Wild Die
+sw4 - 2 x           an unskilled Extra (d4-2); x can go here too
 ```
 
+- `x` (an Extra, no Wild Die) goes straight after the trait die or after
+  the maths: `sw6 x + 1` and `sw6 + 1 x` are the same roll.
+- Unskilled: `sw4 - 2` for a Wild Card, `sw4 - 2 x` for an Extra.
 - Target Number 4 unless `vs` says otherwise.
 - **Success**, and a **raise** for every full 4 over the target:
   "Success, 2 raises".
@@ -636,7 +648,7 @@ Any die on the dice chain, moved up or down it, then modifiers.
 
 ```
 dcc d20 + 2 vs 12        a d20 attack
-dcc d20 +1d + 2          one step up the chain: a d24
+dcc d20 +1d + 2          one step up the chain: a d24 (also + d)
 dcc d16 -2d              two steps down: a d12
 dcc 3d6 -1d              three dice, each a step down: 3d5
 dcc d20 +1d + 1d4        a step up, then an extra d4
@@ -645,7 +657,7 @@ dcc d20 +1d + 1d4        a step up, then an extra d4
 - The chain: d3, d4, d5, d6, d7, d8, d10, d12, d14, d16, d20, d24, d30.
   Steps stop at either end.
 - `+1d` (a sign, a number, and a `d` with nothing after it) is a chain
-  step; `+1d4` is an ordinary extra die.
+  step, and `+d` is one step; `+1d4` is an ordinary extra die.
 - A natural roll of the die's highest face is a **Critical** and always
   succeeds; a natural 1 is a **Fumble** and always fails. Otherwise the
   total against `vs`: **Success** or **Failure**.
@@ -732,6 +744,8 @@ wrong. The console underlines it:
 | hunger is 0 to 5 | `vtm 7 h6` |
 | not on the dice chain | `dcc d9` |
 | at most 3 bonus or penalty dice | `d% b4` |
+| atk/chk/save use a d20 | `chk d30 vs 5` |
+| x (an Extra) goes after the trait die or after the maths | `sw4 - x 2` |
 | p (penalty dice) is for d% | `2d6 p1` |
 | d% takes b and p … | `d% e` |
 | sets takes no number | `5d10 sets2` |
@@ -786,11 +800,11 @@ For the curious, and for anyone writing a compatible parser:
 
 ```
 line     = roll { ";" roll }
-roll     = { repeat | label } ( system tail | sum ) [ "vs" target ] [ buckets ] [ "!" comment ]
-system   = ( "atk" | "chk" | "check" | "save" ) { "adv" | "dis" }
+roll     = { repeat | label } ( system tail | sum ) [ ( "vs" | "v" ) target ] [ buckets ] [ "!" comment ]
+system   = ( "atk" | "chk" | "check" | "save" | "sav" ) { "adv" | "dis" | "d20" | "1d20" }
          | "sw" NUMBER [ "x" ] | "coc" NUMBER { ( "b" | "p" ) [ NUMBER ] }
-         | "fate" | "vtm" NUMBER [ "h" NUMBER ] | "dcc" [ NUMBER ] "d" NUMBER { ( "+" | "-" ) NUMBER "d" }
-tail     = { ( "*" | "/" ) unary } { ( "+" | "-" ) product }      (none after coc, vtm)
+         | "fate" | "vtm" NUMBER [ "h" NUMBER ] | "dcc" [ NUMBER ] "d" NUMBER { ( "+" | "-" ) [ NUMBER ] "d" }
+tail     = { ( "*" | "/" ) unary } { ( "+" | "-" ) product } [ "x" ]   (none after coc, vtm; x for sw)
 target   = [ "-" ] NUMBER | "regular" | "hard" | "extreme"       (the words for coc)
 repeat   = NUMBER "x"
 label    = "(" LETTER { any but ")" } ")"

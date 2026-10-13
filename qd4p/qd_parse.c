@@ -57,6 +57,7 @@ typedef struct {
     qd_parse_error_t  *err;
     bool               failed;
     int                depth;           /* brackets open */
+    int                sw_x;            /* where a later Savage Worlds "x" is, or -1 */
 } ps_t;
 
 /* Record the first problem; always returns false so callers can
@@ -133,10 +134,18 @@ static const char *const keywords[] = {
     "dd", "d", "tl", "t", "f", "b", "e", "sets", "p",
 };
 
-/* "vs" ends the dice part: it isn't a modifier. */
+/* "vs" (or just "v") ends the dice part: it isn't a modifier. Returns
+ * the length of the word, or 0. */
+static int vs_len(const ps_t *ps)
+{
+    if (looking_at(ps, "vs") && !is_alpha(at(ps, ps->i + 2))) return 2;
+    if (looking_at(ps, "v") && !is_alpha(at(ps, ps->i + 1))) return 1;
+    return 0;
+}
+
 static bool at_vs(const ps_t *ps)
 {
-    return looking_at(ps, "vs") && !is_alpha(at(ps, ps->i + 2));
+    return vs_len(ps) > 0;
 }
 
 static bool modifiers(ps_t *ps, qd_pool_t *p)
@@ -386,6 +395,8 @@ static bool primary(ps_t *ps)
     }
     if (named)
         return fail(ps, ps->i, 1, "a group name goes before dice: base:4d6");
+    if (ps->i == ps->sw_x)
+        return fail(ps, ps->i, 1, "x (an Extra) goes after the trait die or after the maths");
     if (!c)
         return fail(ps, ps->i, 1, "the roll stops too soon: a number, dice or '(' should come next");
     return fail(ps, ps->i, 1, "expected a number, dice or '(' instead of '%c'", c);
@@ -475,9 +486,22 @@ static bool sys_dnd(ps_t *ps, int kind, int start)
     int adv = 0;
     for (;;) {
         skip_space(ps);
-        if (word_here(ps, "adv"))      { ps->i += 3; adv++; }
-        else if (word_here(ps, "dis")) { ps->i += 3; adv--; }
-        else break;
+        if (word_here(ps, "adv"))      { ps->i += 3; adv++; continue; }
+        if (word_here(ps, "dis"))      { ps->i += 3; adv--; continue; }
+        /* "chk d20" is allowed (the d20 is already there); another die isn't */
+        int j = ps->i;
+        if (at(ps, j) == '1' && lower(at(ps, j + 1)) == 'd') j++;
+        if (lower(at(ps, j)) == 'd' && is_digit(at(ps, j + 1))) {
+            int k = j + 1;
+            while (is_digit(at(ps, k))) k++;
+            if (k - j == 3 && at(ps, j + 1) == '2' && at(ps, j + 2) == '0' && !is_alpha(at(ps, k))) {
+                ps->i = k;
+                continue;
+            }
+            return fail(ps, ps->i, k - ps->i, "atk/chk/save use a d20; else write 1%.*s vs 5",
+                        k - j, ps->s + j);
+        }
+        break;
     }
     if (!qd_sys_dnd(&ps->out->roll, kind, adv))
         return fail(ps, start, ps->i - start, "too long");
@@ -494,6 +518,15 @@ static bool sys_sw(ps_t *ps, int start)
     if (lower(peek(ps)) == 'x' && !is_alpha(at(ps, ps->i + 1)) && !is_digit(at(ps, ps->i + 1))) {
         ps->i++;
         extra = true;
+    } else {
+        /* "sw4-2 x": the x may also come after the maths, before vs / [ / ! */
+        for (int j = ps->i; j < ps->end && ps->s[j] != '!' && ps->s[j] != '['; j++)
+            if (lower(ps->s[j]) == 'x' && !is_alpha(at(ps, j - 1)) &&
+                !is_alpha(at(ps, j + 1)) && !is_digit(at(ps, j + 1))) {
+                ps->sw_x = j;
+                extra = true;
+                break;
+            }
     }
     if (!qd_sys_sw(&ps->out->roll, (int)sides, !extra))
         return fail(ps, start, ps->i - start, "the trait die is d4, d6, d8, d10 or d12: sw4 ... sw12 (add +1 for d12+1)");
@@ -573,10 +606,10 @@ static bool sys_dcc(ps_t *ps, int start)
         int k = j;
         while (is_digit(at(ps, k))) k++;
         char after = at(ps, k + 1);
-        if (k == j || lower(at(ps, k)) != 'd' || is_digit(after) || after == '%' || after == '{' ||
+        if (lower(at(ps, k)) != 'd' || is_digit(after) || after == '%' || after == '{' ||
             lower(after) == 'f' || lower(after) == 'd')
             break;                                      /* "+2" or "+1d4": maths, not a step */
-        long n = 0;
+        long n = k == j ? 1 : 0;                        /* "+d" is one step */
         for (int q = j; q < k; q++) n = n * 10 + (ps->s[q] - '0');
         steps += sign == '+' ? (int)n : -(int)n;
         ps->i = k + 1;
@@ -595,6 +628,7 @@ static bool try_system(ps_t *ps, bool *found)
     if (word_here(ps, "chk"))   { ps->i += 3; return sys_dnd(ps, QD_DND_CHECK, start); }
     if (word_here(ps, "check")) { ps->i += 5; return sys_dnd(ps, QD_DND_CHECK, start); }
     if (word_here(ps, "save"))  { ps->i += 4; return sys_dnd(ps, QD_DND_SAVE, start); }
+    if (word_here(ps, "sav"))   { ps->i += 3; return sys_dnd(ps, QD_DND_SAVE, start); }
     if (word_here(ps, "fate"))  {
         ps->i += 4;
         if (!qd_sys_fate(&ps->out->roll)) return fail(ps, start, 4, "too long");
@@ -614,7 +648,7 @@ static bool try_vs(ps_t *ps)
     if (!at_vs(ps))
         return true;
     int start = ps->i;
-    ps->i += 2;
+    ps->i += vs_len(ps);
     skip_space(ps);
     qd_roll_t *r = &ps->out->roll;
     if (r->sys.id == QD_SYS_COC) {
@@ -844,6 +878,12 @@ static bool roll(ps_t *ps)
                         id == QD_SYS_COC ? "coc" : "vtm", id == QD_SYS_COC ? "skill" : "pool");
         if (!product_rest(ps) || !sum_rest(ps))
             return false;
+        if (ps->sw_x >= 0) {                            /* "sw4-2 x" */
+            skip_space(ps);
+            if (ps->i != ps->sw_x)
+                return fail(ps, ps->sw_x, 1, "x (an Extra) goes after the trait die or after the maths");
+            ps->i++;
+        }
     } else if (!sum(ps)) {
         return false;
     }
@@ -892,7 +932,7 @@ static bool roll(ps_t *ps)
 int qd_parse_line(const char *text, qd_parsed_t *out, int max, qd_parse_error_t *err)
 {
     qd_parse_error_t dummy;
-    ps_t ps = { text ? text : "", 0, 0, NULL, err ? err : &dummy, false, 0 };
+    ps_t ps = { text ? text : "", 0, 0, NULL, err ? err : &dummy, false, 0, -1 };
     memset(ps.err, 0, sizeof(*ps.err));
     int len = (int)strlen(ps.s), count = 0;
     for (;;) {
@@ -905,6 +945,7 @@ int qd_parse_line(const char *text, qd_parsed_t *out, int max, qd_parse_error_t 
         ps.end = semi;
         ps.out = &out[count];
         ps.depth = 0;
+        ps.sw_x = -1;
         if (!roll(&ps))
             return -1;
         count++;
