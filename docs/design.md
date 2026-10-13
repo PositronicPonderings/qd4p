@@ -232,6 +232,9 @@ reports matching dice.
 - **Roll sets (D6):** `6 x 4d6k3` repeats (x binds loosest);
   `(6 x 4d6) k3` keeps or drops whole rolls (decided with the user: the
   brackets make the set, order of operations otherwise).
+- **Mass rolls (D7):** `N x roll` above 20, up to 1,000, follows the same
+  rules and returns counts (`qd_mass_run`): sum, lowest, highest, passes
+  and each outcome level. `400 x atk + 4 vs 15` for a horde.
 - **Random tables:** a die expression plus ranged entries, nesting to a depth
   cap. Text files converted into an asset pack on the PC (decided for v1);
   QD4P only needs a pointer to the table bytes.
