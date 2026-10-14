@@ -22,3 +22,7 @@
 **New here?** Start with [Part 9](09-getting-started.md), then come back.
 
 Every example in this manual is compiled and run by the test suite, and what it prints is checked against what the page shows. Every roll in the notation guide is checked to parse, and every error it lists to happen. If it's written here, it works.
+
+---
+
+*Dedicated to Isaac Asimov, who wrote about machines helping people build things long before one helped build this.*
