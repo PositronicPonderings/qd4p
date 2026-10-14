@@ -16,6 +16,16 @@
  *   of hanging the device.
  *
  * The defaults are sized about ten times past what a busy table needs.
+ *
+ * WHAT THEY COST: the settings that matter for memory say so below. The
+ * big one is QD_MAX_ROLL_DICE: 16 bytes of RAM per die, so the default
+ * 1,000 is 16 KB and 100 is 1.6 KB. Change a setting on the library, as
+ * PUBLIC, so the library and your program agree:
+ *
+ *     target_compile_definitions(qd4p PUBLIC QD_MAX_ROLL_DICE=100)
+ *
+ * docs/SIZES.md measures every feature and buffer; the manual's
+ * appendices (docs/manual/appendices.md) list every setting.
  */
 #ifndef QD_CONFIG_H
 #define QD_CONFIG_H
@@ -24,13 +34,16 @@
 
 /** Dice kept individually in a result (face, value, flags for each). Past
  *  this a roll switches to summary mode: totals, counts per face, min, max
- *  and mean stay exact; the per-die list stops growing. */
+ *  and mean stay exact; the per-die list stops growing.
+ *  Costs 12 bytes each in every qd_result_t. */
 #ifndef QD_MAX_KEPT_DICE
 #define QD_MAX_KEPT_DICE        100
 #endif
 
 /** Dice rolled in one roll, explosions included. A roll that would need
- *  more is refused with an error before it starts. */
+ *  more is refused with an error before it starts.
+ *  Costs 16 bytes of RAM each, in the engine's working space (16 KB at
+ *  1,000), whether or not the dice are used: the biggest saving there is. */
 #ifndef QD_MAX_ROLL_DICE
 #define QD_MAX_ROLL_DICE        1000
 #endif
@@ -118,7 +131,8 @@
 
 /* --- Stats for nerds and odds ------------------------------------------- */
 
-/** Kinds of die tracked by stats (d6, d20, a custom die ...). */
+/** Kinds of die tracked by stats (d6, d20, a custom die ...): about
+ *  440 bytes each in a qd_stats_t. */
 #ifndef QD_STATS_KINDS
 #define QD_STATS_KINDS          16
 #endif
@@ -143,12 +157,15 @@
 #define QD_ODDS_DICE_BUDGET     500000L
 #endif
 
-/** Exact sums: widest range of totals worked out (4 float buffers of it). */
+/** Exact sums: widest range of totals worked out (4 float buffers of it:
+ *  16 bytes each, 16 KB at 1,024, linked only with qd_odds). Wider sums
+ *  are worked out by the bell curve or simulated instead. */
 #ifndef QD_ODDS_SPAN
 #define QD_ODDS_SPAN            1024
 #endif
 
-/** Values in an odds result's distribution. */
+/** Values in an odds result's distribution: about 8 bytes each, in every
+ *  qd_odds_t and in qd_odds's own tallies. Wider rolls group values. */
 #ifndef QD_ODDS_BINS
 #define QD_ODDS_BINS            256
 #endif

@@ -20,6 +20,8 @@
  * (columns, weights, no repeats). These are the pieces they all share. A
  * complete table system built from them, with a file format and a PC
  * tool, is in examples/tables/.
+ *
+ * MANUAL: docs/manual/reference/text.md, every function with an example.
  */
 #ifndef QD_TEXT_H
 #define QD_TEXT_H

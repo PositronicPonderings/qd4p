@@ -2,7 +2,7 @@
 
 Every byte QD4P takes is a byte your program can't spend on something else: a random table, a picture, a sound. This page says what each feature costs in flash and RAM, so nothing comes as a surprise, and which settings shrink it.
 
-The Pico 2 has 4 MB of flash (on a standard board) and 520 KB of RAM. For scale: the whole QD4P console, which uses every feature at once, is 62 KB of QD4P code and 54 KB of QD4P RAM.
+The Pico 2 has 4 MB of flash (on a standard board) and 520 KB of RAM. For scale: the whole QD4P console, which uses every feature at once, has 61 KB of QD4P code and 55 KB of QD4P RAM in it.
 
 - [The rule: pay for what you use](#the-rule-pay-for-what-you-use)
 - [Three typical programs](#three-typical-programs)
@@ -32,10 +32,10 @@ What a dice-rolling app adds by using QD4P, over a program that only talks over 
 
 | The app... | Flash added | QD4P's RAM | UF2 file grows by |
 |---|---:|---:|---:|
-| rolls dice built in code (`4d20`, `sw8`, `2d6 ie`, `atk adv vs 10`, `coc 50 vs hard`) and judges them | 18.0 KB | 15.7 KB | 34 KB |
+| rolls dice built in code (`4d20`, `sw8`, `2d6 ie`, `atk adv vs 10`, `coc 50 vs hard`) and judges them | 17.9 KB | 15.7 KB | 33 KB |
 | deals cards (poker, Savage Worlds action deck, tarot) | 5.5 KB | 26 B | 10 KB |
 | draws on two 12-entry random tables, written into the app | 13.5 KB | 15.7 KB | 26 KB |
-| ... the same tables through the example table system, with `{dice}` in the text | 37.7 KB | 19.7 KB | 69 KB |
+| ... the same tables through the example table system, with `{dice}` in the text | 37.6 KB | 19.7 KB | 67 KB |
 
 Three things stand out:
 
@@ -53,7 +53,7 @@ Each program in [`tests/size`](../tests/size) uses one feature and prints its re
 - **QD4P's RAM** is the library's own buffers. Structures your program declares, such as a `qd_roll_t` or a `qd_result_t`, are your program's, and are listed [further down](#ram-what-your-program-declares).
 
 <!-- measure.py: begin -->
-Measured with QD4P 0.0.10, Pico SDK for `pico2`, arm-none-eabi-gcc 14.2.1, Release build. The baseline program (USB serial and `printf`, no QD4P) is 29.9 KB of flash, a 56,832-byte UF2 file.
+Measured with QD4P 1.0.0, Pico SDK for `pico2`, arm-none-eabi-gcc 14.2.1, Release build. The baseline program (USB serial and `printf`, no QD4P) is 29.9 KB of flash, a 56,832-byte UF2 file.
 
 | Program | What it uses | Flash added | of which QD4P | QD4P's RAM | UF2 added | QD4P's flash, by file |
 |---|---|---:|---:|---:|---:|---|
@@ -61,14 +61,14 @@ Measured with QD4P 0.0.10, Pico SDK for `pico2`, arm-none-eabi-gcc 14.2.1, Relea
 | `dice` | single dice: a d20, a weighted custom die, a Fudge die, d% with a bonus die | 2.8 KB | 1.7 KB | 275 B | 5,120 | rng 888 B, dice 784 B |
 | `deck` | decks: poker, the Savage Worlds action deck and tarot, dealt and named | 5.5 KB | 3.4 KB | 26 B | 9,728 | deck 2.4 KB, rng 888 B |
 | `engine` | the roll engine, rolls built in code: 4d20, 2d6 ie, 4d6 k3, 10d10 t8 | 12.4 KB | 10.3 KB | 15.7 KB | 24,576 | roll 8.8 KB, rng 888 B, dice 557 B |
-| `systems` | the engine plus game systems, built in code and judged: 4d20, sw8, 2d6 ie, atk adv vs 10, coc 50 vs hard | 18.0 KB | 14.8 KB | 15.7 KB | 34,304 | roll 9.0 KB, sys 4.3 KB, rng 888 B, dice 557 B |
-| `parser` | the same five rolls typed as notation: `qd_parse` | 39.2 KB | 32.2 KB | 15.9 KB | 70,144 | parse 15.2 KB, roll 10.5 KB, sys 5.0 KB, rng 888 B, dice 681 B |
+| `systems` | the engine plus game systems, built in code and judged: 4d20, sw8, 2d6 ie, atk adv vs 10, coc 50 vs hard | 17.9 KB | 14.8 KB | 15.7 KB | 33,792 | roll 9.0 KB, sys 4.3 KB, rng 888 B, dice 557 B |
+| `parser` | the same five rolls typed as notation: `qd_parse` | 39.2 KB | 32.2 KB | 15.9 KB | 70,144 | parse 15.2 KB, roll 10.5 KB, sys 4.9 KB, rng 888 B, dice 681 B |
 | `rerolls` | the engine plus every kind of reroll after the roll | 14.1 KB | 12.0 KB | 18.0 KB | 28,160 | roll 10.5 KB, rng 888 B, dice 557 B |
-| `odds` | the engine plus `qd_odds`: exact and simulated | 34.6 KB | 24.3 KB | 42.3 KB | 67,072 | odds 9.9 KB, roll 8.9 KB, sys 3.8 KB, rng 984 B, dice 557 B |
+| `odds` | the engine plus `qd_odds`: exact and simulated | 34.5 KB | 24.2 KB | 44.0 KB | 67,072 | odds 9.9 KB, roll 8.9 KB, sys 3.8 KB, rng 984 B, dice 557 B |
 | `stats` | the engine plus stats for nerds and the fairness check | 16.0 KB | 12.3 KB | 15.7 KB | 31,744 | roll 8.6 KB, stats 2.2 KB, rng 888 B, dice 609 B |
-| `text` | dice inside text: `qd_expand("{1d4+1} wolves ...")` (brings the parser) | 35.0 KB | 29.3 KB | 19.7 KB | 62,976 | parse 15.2 KB, roll 10.5 KB, sys 1.2 KB, text 900 B, rng 888 B, dice 681 B |
+| `text` | dice inside text: `qd_expand("{1d4+1} wolves ...")` (brings the parser) | 35.1 KB | 29.4 KB | 19.7 KB | 63,488 | parse 15.2 KB, roll 10.5 KB, sys 1.1 KB, text 1.0 KB, rng 888 B, dice 681 B |
 | `tables_own` | two 12-entry tables written into the app: dice built in code, `qd_range_find` | 13.5 KB | 10.2 KB | 15.7 KB | 25,600 | roll 8.6 KB, rng 888 B, dice 557 B |
-| `tables_example` | the same two tables in the example table system (`examples/tables`), one with {dice} in its text | 37.7 KB | 29.5 KB | 19.7 KB | 68,608 | parse 15.2 KB, roll 10.5 KB, sys 1.2 KB, text 1016 B, rng 888 B, dice 681 B |
+| `tables_example` | the same two tables in the example table system (`examples/tables`), one with {dice} in its text | 37.6 KB | 29.5 KB | 19.7 KB | 68,608 | parse 15.2 KB, roll 10.5 KB, sys 1.1 KB, text 1.0 KB, rng 888 B, dice 681 B |
 | `fair` | the engine plus fair mode: fingerprint, numbered rolls, the key | 19.4 KB | 15.2 KB | 15.7 KB | 34,816 | roll 8.6 KB, fair 5.0 KB, rng 1.0 KB, dice 557 B |
 <!-- measure.py: end -->
 
@@ -80,7 +80,7 @@ The same programs with smaller limits (`QD_MAX_ROLL_DICE=100`, `QD_MAX_KEPT_DICE
 | `parser` | 15.9 KB | 1.9 KB |
 | `rerolls` | 18.0 KB | 3.3 KB |
 | `text`, `tables_example` | 19.7 KB | 5.0 KB |
-| `odds` | 42.3 KB | 13.0 KB |
+| `odds` | 44.0 KB | 14.7 KB |
 
 `python3 tests/size/measure.py` rebuilds all of these on your machine; `--write` puts the first table here, and `--define NAME=VALUE` measures with other settings.
 
@@ -115,6 +115,7 @@ QD4P never calls `malloc`. Its working space is fixed-size `static` buffers, eac
 | A parsed roll and its result | `qd_text.c` | 3,828 | `qd_parsed_t` + `qd_result_t` | calls `qd_roll_text`, `qd_expand` or `qd_pick_range` |
 | Exact sums: four probability tables | `qd_odds.c` | 16,384 | 16 bytes x `QD_ODDS_SPAN` (1024) | calls `qd_odds` |
 | Odds tallies | `qd_odds.c` | 2,200 | `QD_ODDS_BINS` (256) and the outcome levels | calls `qd_odds` |
+| The sum as a linear formula | `qd_odds.c` | 1,728 | 72 bytes x `QD_MAX_ROLL_OPS` (24) | calls `qd_odds` |
 | Enumeration script | `qd_odds.c` | 2,048 | 256 draws | calls `qd_odds` |
 | Results while working out odds | `qd_odds.c` | 6,636 | three `qd_result_t` | calls `qd_odds` |
 | The shared Fudge die | `qd_dice.c` | 248 | one `qd_die_t` | calls `qd_fudge_die` (or rolls `dF`) |
@@ -181,7 +182,7 @@ The settings that matter most:
 | `QD_ODDS_SPAN` | 1024 | 16 bytes each, in the odds tables | exact odds of sums wider than this are simulated instead |
 | `QD_ODDS_BINS` | 256 | about 8 bytes each, in `qd_odds_t` and the odds tallies | very wide distributions are grouped more coarsely |
 | `QD_STATS_KINDS`, `QD_STATS_FACES` | 16, 100 | about 4 bytes per face per kind, in `qd_stats_t` | fewer kinds of dice tracked at once |
-| `QD_MAX_POOLS` | 8 | about 130 bytes each in a `qd_roll_t` and 120 in a `qd_result_t` | fewer kinds of dice in one roll (`1d20 + 1d4 + 2d6` is three) |
+| `QD_MAX_POOLS` | 8 | about 136 bytes each in a `qd_roll_t` and 120 in a `qd_result_t` | fewer kinds of dice in one roll (`1d20 + 1d4 + 2d6` is three) |
 
 Measured: `QD_MAX_ROLL_DICE=100` with `QD_MAX_KEPT_DICE=50` takes the roll engine's RAM from 15.7 KB to 1.6 KB and each `qd_result_t` from 2,212 to 1,612 bytes. For the Dice Roller's own screens, 100 dice is plenty: a wargame's biggest volley is a few dozen.
 

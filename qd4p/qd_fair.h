@@ -56,6 +56,8 @@
  *                 little-endian 32-bit words, xoshiro128** state s[0..3].
  *   The strings are plain ASCII with no terminating 0.
  *   Words: byte b is word b of the list in qd_fair.c (256 words).
+ *
+ * MANUAL: docs/manual/reference/fair.md, every function with an example.
  */
 #ifndef QD_FAIR_H
 #define QD_FAIR_H

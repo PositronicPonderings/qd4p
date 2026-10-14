@@ -30,6 +30,8 @@
  * WEIGHTS
  *   A face's weight is how many "tickets" it has in the draw: weight 3 is
  *   three times as likely as weight 1. All weights 1 is a fair die.
+ *
+ * MANUAL: docs/manual/reference/dice.md, every function with an example.
  */
 #ifndef QD_DICE_H
 #define QD_DICE_H

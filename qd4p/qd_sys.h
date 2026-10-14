@@ -39,6 +39,8 @@
  * OUTCOME LEVELS: every system's outcome has a `level`, ordered so that a
  * higher level is a better result, with 0 meaning "no judgement" and
  * negative levels failures. The enums below name them.
+ *
+ * MANUAL: docs/manual/reference/systems.md, every function with an example.
  */
 #ifndef QD_SYS_H
 #define QD_SYS_H

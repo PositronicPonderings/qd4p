@@ -17,6 +17,8 @@
  *     qd_entropy_event();                            // the moment of the click
  *
  * Not included in PC builds.
+ *
+ * MANUAL: docs/manual/reference/randomness.md#qd_entropy_trng, every function with an example.
  */
 #ifndef QD_ENTROPY_PICO_H
 #define QD_ENTROPY_PICO_H

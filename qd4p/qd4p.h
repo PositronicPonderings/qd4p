@@ -28,6 +28,14 @@
  * Everything except the hardware entropy sources is portable C11: it runs
  * on a PC as well as the Pico, which is how it is tested.
  *
+ * You only pay for what you use: a function nothing calls is dropped by
+ * the linker, with its buffers. docs/SIZES.md says what each layer costs.
+ *
+ * THE MANUAL: docs/manual/README.md. Every function has a reference entry
+ * with a working example (docs/manual/reference); the dice notation is
+ * docs/manual/05-notation.md; everything on one page is
+ * docs/manual/quick-reference.md.
+ *
  * NAMING: every public function, type and constant starts with qd_ / QD_.
  */
 #ifndef QD4P_H
@@ -54,9 +62,9 @@ extern "C" {
 #endif
 
 /** Library version as numbers, for #if checks. */
-#define QD_VERSION_MAJOR 0
+#define QD_VERSION_MAJOR 1
 #define QD_VERSION_MINOR 0
-#define QD_VERSION_PATCH 10
+#define QD_VERSION_PATCH 0
 
 /** Library version as text, e.g. "0.0.1". */
 const char *qd_version(void);

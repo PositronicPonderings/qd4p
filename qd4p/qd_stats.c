@@ -5,6 +5,19 @@
 /**
  * @file    qd_stats.c
  * @brief   Stats for nerds: tallies per kind of die and a fairness check.
+ *
+ * HOW IT WORKS
+ *   qd_stats_watch() sets the roll engine's observer (qd_roll_observe) to
+ *   a function that tallies each die it's told about into its kind: the
+ *   count, the sum, the sum of squares (for the spread), the lowest and
+ *   highest, and how often each face came up.
+ *
+ *   The report compares those with a fair die's: the expected average and
+ *   spread come from the face values and their chances (qd_die_face_ppm),
+ *   so a weighted custom die is compared with what its weights promise.
+ *   The fairness check is Pearson's chi-square: the sum, over the faces,
+ *   of (seen - expected)^2 / expected. A fair die rarely scores high; the
+ *   line is drawn where it scores higher only 1 time in 1,000.
  */
 #include <math.h>
 #include <string.h>

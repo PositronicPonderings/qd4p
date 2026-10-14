@@ -35,6 +35,8 @@
  *                               with a reshuffle. A deal in progress
  *                               finishes first.
  *   0 (no flags)                only qd_deck_shuffle() puts cards back
+ *
+ * MANUAL: docs/manual/reference/decks.md, every function with an example.
  */
 #ifndef QD_DECK_H
 #define QD_DECK_H

@@ -1,6 +1,6 @@
 # QD4P: dice library design
 
-Design snapshot, 2026-10-12. The living version is the "QD4P: dice library
+Design snapshot, 2026-10-13, at v1.0.0. The living version is the "QD4P: dice library
 design" doc in the Dice Roller project; this copy travels with the code.
 
 ## Goals and principles
@@ -269,11 +269,15 @@ reports matching dice.
   tags, no credit lines in code.
 - CMake library target for pico-sdk projects plus a plain host build for
   tests and PC tools. Pico-only code: the entropy sources (`*_pico.c`).
-- Optional parts switch on in CMake; each system is its own file.
+- Optional parts cost nothing unless called: the Pico SDK's linker drops
+  every function and buffer nothing refers to. Measured feature by feature
+  in [SIZES.md](SIZES.md) (`tests/size` rebuilds the figures).
 - No malloc. Integers for rolls; floats only in stats and odds.
 - Host tests on every change: statistical tests, golden results in replay
   mode, limit tests.
-- Manual in the QG4P style.
+- Manual in the QG4P style, in [docs/manual](manual/README.md): every
+  function with an entry and a working example; every example, console
+  session and notation example checked by the host tests.
 
 ## Milestones
 
@@ -291,7 +295,8 @@ reports matching dice.
    system as an example in `examples/tables/`.
 10. **D9 Fair mode.** Done: `qd_fair.h`, [the fair-mode guide](manual/07-fair-mode.md),
     the PC checker in `examples/pc`.
-11. **D10 Manual and v1.0.**
+11. **D10 Manual and v1.0.** Done: [the manual](manual/README.md),
+    [what it costs](SIZES.md), seven example programs, v1.0.0.
 
 ## Still open
 

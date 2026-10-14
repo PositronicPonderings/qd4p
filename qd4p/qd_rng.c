@@ -6,6 +6,15 @@
  * @file    qd_rng.c
  * @brief   The generator (xoshiro128**), unbiased ranges, seeding, stirring.
  *
+ * Every random number in QD4P comes through this file, in four layers,
+ * each section below:
+ *   - the generator itself: 128 bits of state, one 32-bit number per step;
+ *   - unbiased ranges: turning 32 bits into a fair die of any size;
+ *   - mixing: stirring outside randomness into the state, safely;
+ *   - seeding: from the hardware at boot, or a fixed seed for replay.
+ * Fair mode (qd_fair.c) and odds (qd_odds.c) reach in through two small
+ * doors, the hold and the script, each explained where it's declared.
+ *
  * Portable C: no Pico code here. The two platform hooks (hardware seed and
  * microsecond clock) live in qd_entropy_pico.c / qd_entropy_host.c.
  */

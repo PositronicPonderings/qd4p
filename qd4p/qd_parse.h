@@ -32,6 +32,8 @@
  *
  * Spaces are optional and case doesn't matter: "4D6K3" is "4d6 k3".
  * After dice, "d1" means "drop the lowest 1": write "+1d1" for a die.
+ *
+ * MANUAL: docs/manual/reference/parse.md, every function with an example.
  */
 #ifndef QD_PARSE_H
 #define QD_PARSE_H

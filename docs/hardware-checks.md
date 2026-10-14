@@ -272,3 +272,40 @@ a PC.
    step 5: the same results as the Pico. (Pasting a list of commands, or
    `qd4p_pc < file.txt`, works too.)
 
+
+## D10 Manual and v1.0
+
+The fixes from the D9 log, the new example programs, and a last look
+round. Steps 1-4 with `qd4p_console`; step 5 with the examples.
+
+1. **Version.** `version` says 1.0.0.
+2. **Words that touch.** `100xatkv20`, `100 xatk v20` and `100 x atkv20`
+   all roll as `100 x atk vs 20`; `atkv20`, `chkvs15`, `savev12` and
+   `coc50vhard` roll as written with spaces. `100atkv20` says to write
+   `100 x`; `sw` alone says it needs the trait die; `atkins` is an
+   unknown command.
+3. **80 columns.** Nothing the console prints is wider than 80 columns:
+   `rng` (in fair mode too) is two lines; `deck sw` then `deal 54` puts
+   "a joker is out" on its own line; `1000d6`, `100d6 [<3,=6]` and `last`
+   after it wrap their dice, indented; a long roll with a mistake (try
+   `(Fireball at the goblin camp) 8d6`) shows a window of it with the
+   caret under the problem.
+4. **Fair mode, the rough edges.** After `fair` / a roll / `fair end`,
+   `fair check` with the first eight key words says "8 words so far";
+   the other eight on the next line finish it. A bare `#1` asks for the
+   action. `fair check` with eight words then `table forest` drops the
+   half key and rolls on the table.
+5. **The examples.** Flash each (`picotool load -f -x
+   build/examples/qd4p_<name>.uf2` switches without the button) and
+   compare with [Part 3 of the manual](manual/03-examples.md); the
+   numbers differ, the behaviour shouldn't.
+   - `qd4p_hello_dice`: a d20 per key.
+   - `qd4p_character`: seven rolls, one dropped, modifiers, a total.
+   - `qd4p_attack`: `a`, `d`, `n` set advantage; space attacks, again and
+     again. Every attack rolls (in the first build of this example, the
+     second attack showed `d20 + 5 = 0`: fixed in the library).
+   - `qd4p_savage`: `i` deals initiative to four (after a joker, the next
+     deal says it reshuffled), `f` rolls Fighting, `b` rerolls it.
+   - `qd4p_loot`: a treasure per key.
+   - `qd4p_dice_box`: type rolls; mistakes underlined.
+   - `qd4p_odds`: three choices with their chances.

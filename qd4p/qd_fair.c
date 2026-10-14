@@ -6,8 +6,23 @@
  * @file    qd_fair.c
  * @brief   Fair mode: a secret key, its fingerprint, numbered actions.
  *
+ * HOW IT WORKS
+ *   A session has a 16-byte secret KEY. Everything else is SHA-256 of it:
+ *     the FINGERPRINT is the first 6 bytes of SHA-256("QD4P fair 1 print"
+ *     + key), shown as six words at the start;
+ *     ACTION n's dice come from the generator set to the first 16 bytes of
+ *     SHA-256("QD4P fair 1 roll" + key + n).
+ *   SHA-256 can't be run backwards, so the fingerprint gives nothing away;
+ *   and nobody can find a second key with the same fingerprint, so the key
+ *   revealed at the end must be the one locked in at the start. Every
+ *   action depends only on the key and its own number, so any action can
+ *   be checked on its own, in any order.
+ *
+ *   While a session runs, the generator is HELD (qd_rng_hold): stirring,
+ *   reseeding and replay are ignored, so nothing can change the dice.
+ *
  * Portable C: SHA-256 is done in software (about 20 us a block on the
- * Pico 2, and fair mode needs one or two per action).
+ * Pico 2, and fair mode needs one or two per action), from FIPS 180-4.
  */
 #include "qd_fair.h"
 

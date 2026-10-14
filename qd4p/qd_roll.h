@@ -63,9 +63,13 @@
  * "highest" the latest-rolled. Totals don't depend on it; which die is
  * marked dropped does, and this makes it the same every time.
  *
- * MEMORY: no malloc. A qd_roll_t is about 0.6 KB and a qd_result_t about
- * 2 KB. The engine also has one working buffer of QD_MAX_ROLL_DICE dice
- * (10 KB) shared by all rolls, so run rolls from one core at a time.
+ * MEMORY: no malloc. A qd_roll_t is 1.4 KB and a qd_result_t 2.2 KB (make
+ * them static: the Pico's stack is 2 KB). The engine also has one working
+ * buffer, 16 bytes per die of QD_MAX_ROLL_DICE (16 KB at the default of
+ * 1,000), shared by all rolls, so run rolls from one core at a time.
+ * docs/SIZES.md lists every buffer and the settings that shrink them.
+ *
+ * MANUAL: docs/manual/reference/rolls.md, every function with an example.
  */
 #ifndef QD_ROLL_H
 #define QD_ROLL_H

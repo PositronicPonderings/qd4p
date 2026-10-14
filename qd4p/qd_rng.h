@@ -37,6 +37,9 @@
  *   "random % 6" is very slightly unfair: 2^32 isn't a multiple of 6, so the
  *   low faces come up a hair more often. qd_rng_range() rejects the few
  *   leftover values instead, so every face is exactly equally likely.
+ *
+ * MANUAL: docs/manual/reference/randomness.md; the why in
+ * docs/manual/10-how-it-works.md.
  */
 #ifndef QD_RNG_H
 #define QD_RNG_H
@@ -65,8 +68,8 @@ int32_t qd_rng_between(int32_t lo, int32_t hi);
 
 /** Seed from the hardware random source and leave replay mode. On the Pico
  *  this uses the RP2350 TRNG (qd_entropy_pico.c). On a PC build it uses
- *  the clock and the address of a stack variable: fine for trying things,
- *  not for anything that matters. Call once at boot; calling again later
+ *  the operating system's random source (/dev/urandom), or the clock where
+ *  there is none. Call once at boot; calling again later
  *  stirs in fresh hardware randomness on top. Ignored in fair mode. */
 void qd_rng_init_hw(void);
 

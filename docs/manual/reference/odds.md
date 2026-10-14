@@ -11,7 +11,7 @@ Header: `qd_odds.h` (included by `qd4p.h`).
 
 A guide with more examples, for players: [Part 6, Odds and stats for nerds](../06-odds-and-stats.md).
 
-Odds are one of QD4P's heavier features: about 10 KB of code and 27 KB of working space ([what it costs](../../SIZES.md), and how to shrink it).
+Odds are one of QD4P's heavier features: about 10 KB of code and 28 KB of working space ([what it costs](../../SIZES.md), and how to shrink it).
 
 ---
 

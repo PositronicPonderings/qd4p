@@ -14,7 +14,7 @@
  *     // odds.pass 0.7975, odds.exact true, odds.mean 18.825
  *     // odds.level[QD_LVL_CRIT + 4] 0.0975: the chance of a critical hit
  *
- * HOW: three ways, the first that fits:
+ * HOW: four ways, the first that fits:
  *   1. Sums and success counts of plain dice (no keep, advantage,
  *      exploding or rerolls) are worked out exactly, die by die
  *      (convolution). Fast even for dozens of dice.
@@ -35,6 +35,10 @@
  *
  * THE VALUE: the total, or the successes for a roll that counts them.
  * For a roll set ("6 x 4d6k3") the odds are for one roll.
+ *
+ * MANUAL: docs/manual/reference/odds.md; for players,
+ * docs/manual/06-odds-and-stats.md. Costs about 10 KB of flash and 28 KB of
+ * RAM when used (docs/SIZES.md).
  */
 #ifndef QD_ODDS_H
 #define QD_ODDS_H

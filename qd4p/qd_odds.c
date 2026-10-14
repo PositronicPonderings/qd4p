@@ -4,8 +4,31 @@
 /* SPDX-AI-Provider: Anthropic */
 /**
  * @file    qd_odds.c
- * @brief   Odds: exact by convolution, exact by trying every roll, or
- *          simulated. See qd_odds.h for when each is used.
+ * @brief   Odds: the chance of every result of a roll, worked out four
+ *          ways. qd_odds.h says which rolls use which.
+ *
+ * HOW THIS FILE IS LAID OUT
+ *   1. Convolution (exact sums). Each die is turned into a little table of
+ *      "what it adds, and how likely": a d6 adds 1..6 at 1/6 each. Two
+ *      tables combine into the table of their sum by trying every pair of
+ *      entries; the third die is combined with that, and so on. The tables
+ *      live in four static float buffers of QD_ODDS_SPAN entries.
+ *   2. Trying every roll (exact anything). The generator is SCRIPTED
+ *      (qd_rng_script): instead of random numbers it returns chosen ones,
+ *      and the roll is run once for every possible sequence of them, like
+ *      an odometer turning over. Each run's chance is the product of 1/n
+ *      for each draw of n it made. The engine does all the work, so keep,
+ *      advantage, rerolls and game outcomes come for free.
+ *   3. The bell curve (big plain sums). Each die's average and variance
+ *      add up exactly; the chances come from the normal distribution.
+ *   4. Simulation (everything else): roll it QD_ODDS_SAMPLES times and
+ *      count.
+ *   Gathering (acc_*) is shared by 2 and 4: a tally of values, passes and
+ *   outcome levels, each weighted by its chance.
+ *
+ * NOTHING CHANGES OUTSIDE: the generator's state is saved first and put
+ * back after, and the stats observer is switched off while working, so the
+ * rolls after asking for odds are the rolls there would have been anyway.
  */
 #include <math.h>
 #include <stdlib.h>

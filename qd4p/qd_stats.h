@@ -26,6 +26,8 @@
  * fails it about 1 time in 1,000, so one "odd" is a curiosity; the same
  * die odd again and again is worth a look. It needs about 5 rolls per face
  * before it says anything (30 for a d6, 100 for a d20).
+ *
+ * MANUAL: docs/manual/reference/stats.md, every function with an example.
  */
 #ifndef QD_STATS_H
 #define QD_STATS_H

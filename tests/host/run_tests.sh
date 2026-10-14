@@ -71,6 +71,12 @@ else
     echo "FAIL  notation guide:"; sed 's/^/      /' $B/notation_examples.log; fail=$((fail+1))
 fi
 
+if python3 check_links.py > $B/links.log 2>&1; then
+    echo "PASS  $(tail -1 $B/links.log)"; pass=$((pass+1))
+else
+    echo "FAIL  documentation links:"; sed 's/^/      /' $B/links.log; fail=$((fail+1))
+fi
+
 if python3 check_disclosure.py > $B/disclosure.log 2>&1; then
     echo "PASS  $(head -1 $B/disclosure.log)"; pass=$((pass+1))
 else

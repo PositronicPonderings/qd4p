@@ -5,6 +5,20 @@
 /**
  * @file    qd_text.c
  * @brief   Dice in text, and rolls that pick from ranges.
+ *
+ * HOW IT WORKS
+ *   qd_expand_ex() copies text a character at a time. A '{' starts a roll:
+ *   the notation up to the matching '}' is parsed and run (qd_roll_textn)
+ *   and its value written in its place. A '[' with a hook set hands the
+ *   name inside to the app's hook, which writes whatever it likes in its
+ *   place (a random-table app rolls on that table, and its hook may call
+ *   qd_expand_ex again: that's how tables link). A backslash makes the next
+ *   character literal. The output is never overrun: anything that doesn't
+ *   fit is cut, and flagged.
+ *
+ *   Everything here except qd_range_find() reads notation, so it links in
+ *   the parser. qd_range_find() is a plain search: an app that rolls its
+ *   tables' dice in code can use it alone.
  */
 #include <stdio.h>
 #include <string.h>

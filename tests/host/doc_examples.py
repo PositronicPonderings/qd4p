@@ -92,32 +92,34 @@ def options(text):
     return opts
 
 
+def doc_files():
+    """Every page of the manual, and the README."""
+    paths = [os.path.join(ROOT, "README.md")]
+    for root, _dirs, files in os.walk(MANUAL):
+        paths += [os.path.join(root, f) for f in sorted(files) if f.endswith(".md")]
+    return paths
+
+
 def find_examples():
     found = []
-    for root, _dirs, files in os.walk(MANUAL):
-        for f in sorted(files):
-            if f.endswith(".md"):
-                path = os.path.join(root, f)
-                text = open(path, encoding="utf-8").read()
-                for m in FENCE.finditer(text):
-                    out = OUTPUT.match(text, m.end())
-                    found.append({"name": m.group(1), "opts": options(m.group(2)), "code": m.group(3),
-                                  "path": path, "end": m.end(),
-                                  "output": out.group(2) if out else None,
-                                  "out_span": (m.end(), out.end()) if out else None})
+    for path in doc_files():
+        text = open(path, encoding="utf-8").read()
+        for m in FENCE.finditer(text):
+            out = OUTPUT.match(text, m.end())
+            found.append({"name": m.group(1), "opts": options(m.group(2)), "code": m.group(3),
+                          "path": path, "end": m.end(),
+                          "output": out.group(2) if out else None,
+                          "out_span": (m.end(), out.end()) if out else None})
     return found
 
 
 def find_transcripts():
     found = []
-    for root, _dirs, files in os.walk(MANUAL):
-        for f in sorted(files):
-            if f.endswith(".md"):
-                path = os.path.join(root, f)
-                text = open(path, encoding="utf-8").read()
-                for m in CONSOLE.finditer(text):
-                    found.append({"opts": options(m.group(1)), "body": m.group(2), "path": path,
-                                  "span": (m.start(2), m.end(2))})
+    for path in doc_files():
+        text = open(path, encoding="utf-8").read()
+        for m in CONSOLE.finditer(text):
+            found.append({"opts": options(m.group(1)), "body": m.group(2), "path": path,
+                          "span": (m.start(2), m.end(2))})
     return found
 
 
